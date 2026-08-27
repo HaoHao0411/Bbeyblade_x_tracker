@@ -27,7 +27,7 @@
     align-items: flex-start;
     padding: 20px;
   }
-  .stage { width: 100%; max-width: 860px; }
+  .stage { width: 100%; max-width: 860px; position: relative; }
 
   /* top bar spans full width */
   .topbar {
@@ -353,9 +353,10 @@
           </div>
           <div class="player-score" id="scoreA">0</div>
           <div class="battle-btn-row">
-            <button class="battle-pt-btn" data-player="a" data-points="1">一般勝 +1</button>
-            <button class="battle-pt-btn" data-player="a" data-points="2">爆裂勝 +2</button>
-            <button class="battle-pt-btn" data-player="a" data-points="2">出界勝 +2</button>
+            <button class="battle-pt-btn" data-player="a" data-points="1">轉停勝利 +1</button>
+            <button class="battle-pt-btn" data-player="a" data-points="2">爆裂勝利 +2</button>
+            <button class="battle-pt-btn" data-player="a" data-points="2">出界勝利 +2</button>
+            <button class="battle-pt-btn" data-player="a" data-points="3">極限勝利 +3</button>
           </div>
         </div>
 
@@ -368,14 +369,15 @@
           </div>
           <div class="player-score" id="scoreB">0</div>
           <div class="battle-btn-row">
-            <button class="battle-pt-btn" data-player="b" data-points="1">一般勝 +1</button>
-            <button class="battle-pt-btn" data-player="b" data-points="2">爆裂勝 +2</button>
-            <button class="battle-pt-btn" data-player="b" data-points="2">出界勝 +2</button>
+            <button class="battle-pt-btn" data-player="b" data-points="1">轉停勝利 +1</button>
+            <button class="battle-pt-btn" data-player="b" data-points="2">爆裂勝利 +2</button>
+            <button class="battle-pt-btn" data-player="b" data-points="2">出界勝利 +2</button>
+            <button class="battle-pt-btn" data-player="b" data-points="3">極限勝利 +3</button>
           </div>
         </div>
       </div>
 
-      <p class="battle-hint">率先取得 3 分獲勝(一般勝 +1 分,爆裂勝/出界勝 +2 分)</p>
+      <p class="battle-hint">率先取得 4 分獲勝(轉停勝利 +1 分,爆裂勝利/出界勝利 +2 分,極限勝利 +3 分)</p>
       <div class="battle-log" id="battleLog"></div>
     </div>
   </div>
@@ -801,7 +803,7 @@ connectBtn.addEventListener('click', connect);
 // since the app has no way to know WHO won a physical battle or HOW
 // (spin/burst/xtreme) just from RPM telemetry; the person running the
 // match taps the result themselves.
-const WIN_SCORE = 3;
+const WIN_SCORE = 4;
 const scoreEls = { a: document.getElementById('scoreA'), b: document.getElementById('scoreB') };
 const nameEls = { a: document.getElementById('playerNameA'), b: document.getElementById('playerNameB') };
 const cardEls = { a: document.getElementById('playerCardA'), b: document.getElementById('playerCardB') };
@@ -840,8 +842,8 @@ function addPoint(player, points, label) {
 }
 
 document.querySelectorAll('.battle-pt-btn').forEach((btn, i) => {
-  const labels = ['一般勝', '爆裂勝', '出界勝'];
-  const labelIdx = i % 3;
+  const labels = ['轉停勝利', '爆裂勝利', '出界勝利', '極限勝利'];
+  const labelIdx = i % 4;
   btn.addEventListener('click', () => {
     addPoint(btn.dataset.player, Number(btn.dataset.points), labels[labelIdx]);
   });
