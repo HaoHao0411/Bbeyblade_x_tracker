@@ -6,19 +6,25 @@
 <title>BeyBlade X 追蹤器(橫向)</title>
 <style>
   :root {
-    --bg: #111111;
-    --panel: #1b1b1b;
-    --line: #2f2f2f;
-    --ink: #f5f2ea;
-    --ink-dim: #8c877c;
-    --gold: #f5b400;
-    --gold-ink: #221a00;
-    --danger: #ff5c5c;
+    --bg: #05060a;
+    --panel: rgba(20, 24, 38, 0.72);
+    --line: rgba(0, 229, 255, 0.18);
+    --ink: #eef2f7;
+    --ink-dim: #8894a8;
+    --gold: #00e5ff;
+    --gold-ink: #00131a;
+    --danger: #ff3d7f;
+    --neon-pink: #ff2fb0;
+    --neon-purple: #9b5cff;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    background: var(--bg);
+    background:
+      radial-gradient(circle at 12% 15%, rgba(155, 92, 255, 0.28), transparent 42%),
+      radial-gradient(circle at 88% 12%, rgba(0, 229, 255, 0.22), transparent 42%),
+      radial-gradient(circle at 50% 95%, rgba(255, 47, 176, 0.16), transparent 48%),
+      var(--bg);
     color: var(--ink);
     font-family: "Noto Sans TC", -apple-system, "Segoe UI", sans-serif;
     min-height: 100vh;
@@ -26,8 +32,30 @@
     justify-content: center;
     align-items: flex-start;
     padding: 20px;
+    position: relative;
+    overflow-x: hidden;
   }
-  .stage { width: 100%; max-width: 860px; position: relative; }
+  /* faint animated "rain" streaks over the neon glow */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+      112deg,
+      rgba(180, 220, 255, 0.05) 0px,
+      rgba(180, 220, 255, 0.05) 1px,
+      transparent 1px,
+      transparent 14px
+    );
+    animation: rainFall 0.7s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
+  @keyframes rainFall {
+    from { background-position: 0 0; }
+    to { background-position: -26px 60px; }
+  }
+  .stage { width: 100%; max-width: 860px; position: relative; z-index: 1; }
 
   /* top bar spans full width */
   .topbar {
@@ -94,17 +122,20 @@
   .col-left { display: flex; flex-direction: column; gap: 12px; }
 
   .hero-card {
-    background: linear-gradient(160deg, #1f1f1f, var(--panel));
+    background: linear-gradient(160deg, rgba(30, 20, 50, 0.75), var(--panel));
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
     border: 0.5px solid var(--line);
     border-radius: 18px;
     padding: 18px 16px;
     text-align: center;
+    box-shadow: 0 0 24px rgba(0, 229, 255, 0.08), inset 0 0 0 1px rgba(255,255,255,0.02);
   }
   .hero-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: var(--ink-dim); }
-  .hero-num { font-size: 46px; font-weight: 800; line-height: 1; margin: 10px 0 2px; font-variant-numeric: tabular-nums; }
+  .hero-num { font-size: 46px; font-weight: 800; line-height: 1; margin: 10px 0 2px; font-variant-numeric: tabular-nums; text-shadow: 0 0 18px rgba(0,229,255,0.35); }
   .hero-unit { font-size: 11px; color: var(--ink-dim); letter-spacing: 1.5px; }
   .hero-track { height: 5px; border-radius: 3px; background: var(--bg); margin-top: 14px; overflow: hidden; }
-  .hero-track-fill { height: 100%; width: 0%; background: var(--gold); border-radius: 3px; transition: width 0.3s ease; }
+  .hero-track-fill { height: 100%; width: 0%; background: var(--gold); border-radius: 3px; transition: width 0.3s ease; box-shadow: 0 0 10px var(--gold); }
 
   .tabbar {
     display: flex; background: var(--panel); border: 0.5px solid var(--line);
@@ -197,7 +228,7 @@
     background: var(--panel); border: 0.5px solid var(--line); border-radius: 16px;
     padding: 18px 16px; text-align: center; transition: border-color 0.3s ease, box-shadow 0.3s ease;
   }
-  .player-card.winner { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+  .player-card.winner { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset, 0 0 24px rgba(0,229,255,0.25); }
   .player-name-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 6px; }
   .player-name { font-size: 13px; font-weight: 700; color: var(--ink-dim); }
   .player-rename-btn { border: none; background: none; color: var(--ink-dim); font-size: 12px; cursor: pointer; padding: 2px; }
@@ -205,6 +236,8 @@
     font-size: 52px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; margin-bottom: 16px;
   }
   .player-card.winner .player-score { color: var(--gold); }
+  #playerCardB.winner { border-color: var(--neon-pink); box-shadow: 0 0 0 1px var(--neon-pink) inset, 0 0 24px rgba(255,47,176,0.28); }
+  #playerCardB.winner .player-score { color: var(--neon-pink); }
   .battle-btn-row { display: flex; flex-direction: column; gap: 6px; }
   .battle-pt-btn {
     border: 0.5px solid var(--line); background: var(--bg); color: var(--ink);
@@ -218,6 +251,16 @@
   }
 
   /* narrow-viewport fallback: stack columns if the window is too tight for landscape */
+  /* shared glass/neon treatment for every semi-transparent panel */
+  .conn-pill, .menu-panel, .strip, .queue-row, .timer-page, .trend-box,
+  .player-card, .log, .battle-log, .battle-pt-btn {
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+  .menu-panel, .trend-box, .player-card, .log, .battle-log {
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.06);
+  }
+
   @media (max-width: 680px) {
     .grid { grid-template-columns: 1fr; }
     .charts-row { grid-template-columns: 1fr; }
