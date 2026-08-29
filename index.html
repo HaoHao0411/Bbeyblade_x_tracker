@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>BeyBlade X 測速器</title>
+<title>BeyBlade X 追蹤器</title>
 <style>
   :root {
     --bg: #05060a;
@@ -191,7 +191,7 @@
   .strip-item .v { font-size: 18px; font-weight: 800; margin: 0; font-variant-numeric: tabular-nums; }
   .strip-item.gold .v { color: var(--gold); }
 
-  .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .charts-row { display: flex; flex-direction: column; gap: 12px; }
   .trend-box { background: var(--panel); border: 0.5px solid var(--line); border-radius: 14px; padding: 14px 14px 10px; }
   .panel-title { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
   .panel-title .t { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; color: var(--ink-dim); }
@@ -263,7 +263,7 @@
 
   @media (max-width: 680px) {
     .grid { grid-template-columns: 1fr; }
-    .charts-row { grid-template-columns: 1fr; }
+    /* .charts-row already stacks vertically at all widths now */
     .battle-grid { grid-template-columns: 1fr; }
     .battle-vs { display: none; }
   }
@@ -343,10 +343,10 @@
       </div>
 
       <div class="charts-row">
-        <div class="trend-box" id="flightCurveBox" style="display:none;">
+        <div class="trend-box" id="flightCurveBox">
           <div class="panel-title">
             <span class="t">本次發射曲線</span>
-            <span class="n" id="flightCurveMeta">轉速隨時間變化</span>
+            <span class="n" id="flightCurveMeta">尚無資料</span>
           </div>
           <div class="trend-svg-wrap">
             <svg id="flightCurveSvg" viewBox="0 0 300 108" width="100%" height="108" preserveAspectRatio="none"></svg>
@@ -355,8 +355,8 @@
 
         <div class="trend-box">
           <div class="panel-title">
-            <span class="t">發射趨勢</span>
-            <span class="n">最近 10 次</span>
+            <span class="t">轉速歷史紀錄</span>
+            <span class="n" id="trendMeta">最近 10 次 · 點選圖上的點查看數值</span>
           </div>
           <div class="trend-svg-wrap">
             <svg id="trendSvg" viewBox="0 0 300 108" width="100%" height="108" preserveAspectRatio="none"></svg>
@@ -470,6 +470,7 @@ const statusDot = document.getElementById('statusDot');
 const statusMsg = document.getElementById('statusMsg');
 const statusRight = document.getElementById('statusRight');
 const trendSvg = document.getElementById('trendSvg');
+const trendMeta = document.getElementById('trendMeta');
 const flightCurveBox = document.getElementById('flightCurveBox');
 const flightCurveSvg = document.getElementById('flightCurveSvg');
 const flightCurveMeta = document.getElementById('flightCurveMeta');
@@ -565,7 +566,8 @@ function simulateLaunch() {
   statusMsg.textContent = '發射偵測中...(模擬)';
   currentFlightSamples = [];
   currentFlightStartAt = Date.now();
-  flightCurveBox.style.display = 'none';
+  flightCurveSvg.innerHTML = '';
+  flightCurveMeta.textContent = '記錄中...(模擬)';
 
   const tick = () => {
     setHeroRpm(rpm);
@@ -597,8 +599,9 @@ menuClearDisplay.addEventListener('click', () => {
   statAvg.textContent = '--';
   statTotal.textContent = '--';
   trendSvg.innerHTML = '';
+  trendMeta.textContent = '最近 10 次 · 點選圖上的點查看數值';
   flightCurveSvg.innerHTML = '';
-  flightCurveBox.style.display = 'none';
+  flightCurveMeta.textContent = '尚無資料';
   currentFlightSamples = [];
   resetTimerDisplay();
   menuPanel.classList.remove('open');
@@ -642,6 +645,7 @@ function setHeroRpm(rpm) {
 
 function renderTrend(hist) {
   trendSvg.innerHTML = '';
+  trendMeta.textContent = '最近 10 次 · 點選圖上的點查看數值';
   if (!hist || hist.length < 2) return;
   const w = 300, h = 88, pad = 6;
   const max = Math.max(...hist);
@@ -661,25 +665,47 @@ function renderTrend(hist) {
   const ns = 'http://www.w3.org/2000/svg';
   const area = document.createElementNS(ns, 'path');
   area.setAttribute('d', areaPath);
-  area.setAttribute('fill', 'rgba(245,180,0,0.12)');
+  area.setAttribute('fill', 'rgba(0,229,255,0.12)');
   trendSvg.appendChild(area);
 
   const line = document.createElementNS(ns, 'path');
   line.setAttribute('d', linePath);
   line.setAttribute('fill', 'none');
-  line.setAttribute('stroke', '#f5b400');
+  line.setAttribute('stroke', '#00e5ff');
   line.setAttribute('stroke-width', '2.5');
   line.setAttribute('stroke-linecap', 'round');
   line.setAttribute('stroke-linejoin', 'round');
   trendSvg.appendChild(line);
 
+  // Click any point to see that launch's peak RPM in the header above.
+  // A larger invisible circle sits on top of each visible dot purely to
+  // make the tap/click target bigger than the tiny 2.5px visible dot.
   points.forEach((p, i) => {
     const dot = document.createElementNS(ns, 'circle');
     dot.setAttribute('cx', p[0].toFixed(1));
     dot.setAttribute('cy', p[1].toFixed(1));
     dot.setAttribute('r', i === points.length - 1 ? '4' : '2.5');
-    dot.setAttribute('fill', i === points.length - 1 ? '#f5b400' : '#3a3a3a');
+    dot.setAttribute('fill', i === points.length - 1 ? '#00e5ff' : '#5a6478');
+    dot.setAttribute('id', 'trendDot' + i);
     trendSvg.appendChild(dot);
+
+    const hitArea = document.createElementNS(ns, 'circle');
+    hitArea.setAttribute('cx', p[0].toFixed(1));
+    hitArea.setAttribute('cy', p[1].toFixed(1));
+    hitArea.setAttribute('r', '9');
+    hitArea.setAttribute('fill', 'transparent');
+    hitArea.style.cursor = 'pointer';
+    hitArea.addEventListener('click', () => {
+      trendSvg.querySelectorAll('circle[id^="trendDot"]').forEach(c => {
+        c.setAttribute('stroke', 'none');
+        c.removeAttribute('stroke-width');
+      });
+      dot.setAttribute('stroke', '#ff2fb0');
+      dot.setAttribute('stroke-width', '2');
+      const ordinal = (i === points.length - 1) ? '最新一次' : ('倒數第 ' + (points.length - i) + ' 次');
+      trendMeta.textContent = ordinal + ':峰值 ' + hist[i].toLocaleString() + ' RPM';
+    });
+    trendSvg.appendChild(hitArea);
   });
 }
 
@@ -695,10 +721,9 @@ let currentFlightStartAt = 0;
 function renderFlightCurve(samples) {
   flightCurveSvg.innerHTML = '';
   if (!samples || samples.length < 2) {
-    flightCurveBox.style.display = 'none';
+    flightCurveMeta.textContent = '尚無資料';
     return;
   }
-  flightCurveBox.style.display = 'block';
 
   const w = 300, h = 88, pad = 6;
   const rpms = samples.map(s => s.rpm);
@@ -720,13 +745,13 @@ function renderFlightCurve(samples) {
   const ns = 'http://www.w3.org/2000/svg';
   const area = document.createElementNS(ns, 'path');
   area.setAttribute('d', areaPath);
-  area.setAttribute('fill', 'rgba(245,180,0,0.12)');
+  area.setAttribute('fill', 'rgba(0,229,255,0.12)');
   flightCurveSvg.appendChild(area);
 
   const line = document.createElementNS(ns, 'path');
   line.setAttribute('d', linePath);
   line.setAttribute('fill', 'none');
-  line.setAttribute('stroke', '#f5b400');
+  line.setAttribute('stroke', '#00e5ff');
   line.setAttribute('stroke-width', '2.5');
   line.setAttribute('stroke-linecap', 'round');
   line.setAttribute('stroke-linejoin', 'round');
@@ -737,7 +762,7 @@ function renderFlightCurve(samples) {
   peakDot.setAttribute('cx', points[peakIdx][0].toFixed(1));
   peakDot.setAttribute('cy', points[peakIdx][1].toFixed(1));
   peakDot.setAttribute('r', '4');
-  peakDot.setAttribute('fill', '#f5b400');
+  peakDot.setAttribute('fill', '#00e5ff');
   flightCurveSvg.appendChild(peakDot);
 
   flightCurveMeta.textContent = '峰值 ' + maxRpm.toLocaleString() + ' RPM · ' + (maxT / 1000).toFixed(1) + 's';
@@ -757,7 +782,8 @@ function onRpmNotify(event) {
     if (activeTab === 'timer') startTimer();   // only time it if you're actually looking at the timer tab when the launch happens
     currentFlightSamples = [];
     currentFlightStartAt = Date.now();
-    flightCurveBox.style.display = 'none';   // hide the previous launch's curve while a new one is in progress
+    flightCurveSvg.innerHTML = '';
+    flightCurveMeta.textContent = '記錄中...';   // box stays visible, just clears the previous launch's curve
   }
   currentFlightSamples.push({ t: Date.now() - currentFlightStartAt, rpm });
   clearTimeout(liveTimeout);
