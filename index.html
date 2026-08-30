@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>BeyBlade X 追蹤器</title>
+<title>BeyBlade X 追蹤器(橫向)</title>
 <style>
   :root {
     --bg: #05060a;
@@ -356,7 +356,7 @@
         <div class="trend-box">
           <div class="panel-title">
             <span class="t">轉速歷史紀錄</span>
-            <span class="n" id="trendMeta">最近 10 次</span>
+            <span class="n" id="trendMeta">最近 10 次 · 點選圖上的點查看數值</span>
           </div>
           <div class="trend-svg-wrap">
             <svg id="trendSvg" viewBox="0 0 300 108" width="100%" height="108" preserveAspectRatio="none"></svg>
@@ -370,7 +370,7 @@
 
   <div class="view" id="viewTimer">
     <div class="timer-page" style="max-width:320px; margin:0 auto;">
-      <p class="timer-page-label">飛行時間</p>
+      <p class="timer-page-label">旋轉時間計時器</p>
       <p class="timer-page-value" id="timerValue">00:00.0</p>
       <p class="timer-page-hint">發射後自動開始計時,按下方按鈕手動結束</p>
       <button class="timer-page-stop-btn" id="timerStopBtn" disabled>停止計時</button>
@@ -550,7 +550,7 @@ function updateTimerDisplay() {
 
 timerStopBtn.addEventListener('click', () => {
   stopTimer();
-  log('飛行時間手動停止: ' + timerValue.textContent);
+  log('旋轉時間計時器手動停止: ' + timerValue.textContent);
 });
 
 // ---- Demo/simulate mode: try the UI out before the ESP32 firmware
@@ -718,6 +718,23 @@ function renderTrend(hist) {
 let currentFlightSamples = [];   // [{t: ms-since-launch-start, rpm}]
 let currentFlightStartAt = 0;
 
+// Simple moving average -- smooths out per-pulse measurement jitter
+// for display purposes. Window edges use however many neighbors are
+// actually available (no padding/wrap), so the curve doesn't distort
+// at the very start/end where a full window isn't possible yet.
+function movingAverage(values, windowSize) {
+  const out = [];
+  const half = Math.floor(windowSize / 2);
+  for (let i = 0; i < values.length; i++) {
+    const lo = Math.max(0, i - half);
+    const hi = Math.min(values.length - 1, i + half);
+    let sum = 0;
+    for (let j = lo; j <= hi; j++) sum += values[j];
+    out.push(sum / (hi - lo + 1));
+  }
+  return out;
+}
+
 function renderFlightCurve(samples) {
   flightCurveSvg.innerHTML = '';
   if (!samples || samples.length < 2) {
@@ -726,16 +743,17 @@ function renderFlightCurve(samples) {
   }
 
   const w = 300, h = 88, pad = 6;
-  const rpms = samples.map(s => s.rpm);
+  const rawRpms = samples.map(s => s.rpm);
+  const rpms = movingAverage(rawRpms, 5);   // smoothed values drive the drawn curve
   const times = samples.map(s => s.t);
-  const maxRpm = Math.max(...rpms);
+  const maxRpm = Math.max(...rawRpms);      // peak label uses the RAW data -- smoothing shouldn't understate the true peak
   const minRpm = Math.min(...rpms);
-  const rpmRange = Math.max(1, maxRpm - minRpm);
+  const rpmRange = Math.max(1, Math.max(...rpms) - minRpm);
   const maxT = Math.max(1, times[times.length - 1]);
 
-  const points = samples.map(s => {
+  const points = samples.map((s, i) => {
     const x = pad + (s.t / maxT) * (w - pad * 2);
-    const y = pad + (1 - (s.rpm - minRpm) / rpmRange) * (h - pad * 2);
+    const y = pad + (1 - (rpms[i] - minRpm) / rpmRange) * (h - pad * 2);
     return [x, y];
   });
 
@@ -758,7 +776,7 @@ function renderFlightCurve(samples) {
   flightCurveSvg.appendChild(line);
 
   const peakDot = document.createElementNS(ns, 'circle');
-  const peakIdx = rpms.indexOf(maxRpm);
+  const peakIdx = rawRpms.indexOf(maxRpm);
   peakDot.setAttribute('cx', points[peakIdx][0].toFixed(1));
   peakDot.setAttribute('cy', points[peakIdx][1].toFixed(1));
   peakDot.setAttribute('r', '4');
