@@ -128,6 +128,13 @@
   .ota-progress-track { height: 8px; border-radius: 4px; background: var(--bg); overflow: hidden; margin-bottom: 8px; }
   .ota-progress-fill { height: 100%; width: 0%; background: var(--gold); border-radius: 4px; transition: width 0.2s ease; }
   .ota-percent { font-size: 12px; color: var(--ink-dim); text-align: center; margin: 0; }
+  .gesture-row { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+  .gesture-count {
+    flex: 0 0 auto; min-width: 44px; text-align: center; font-size: 15px; font-weight: 700;
+    color: var(--gold-ink); background: var(--gold); border-radius: 8px; padding: 4px 6px;
+  }
+  .gesture-title { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
+  .gesture-sub { font-size: 11.5px; color: var(--ink-dim); line-height: 1.5; }
 
   .ios-banner {
     display: none; background: #1a2a3d; border: 0.5px solid #2a4a6a; border-radius: 12px;
@@ -330,8 +337,47 @@
     <button class="menu-item" id="menuClearDisplay">清除畫面顯示</button>
     <div class="menu-sep"></div>
     <button class="menu-item" id="menuFirmware">更新韌體</button>
+    <button class="menu-item" id="menuGestures">開關手勢說明</button>
     <div class="menu-sep"></div>
     <button class="menu-item" id="menuAbout">關於這個 App</button>
+  </div>
+
+  <div class="ota-overlay" id="gesturesOverlay">
+    <div class="ota-card">
+      <div class="ota-header">
+        <span>開關手勢說明</span>
+        <button class="ota-close-btn" id="gesturesCloseBtn">✕</button>
+      </div>
+      <div class="ota-body">
+        <p class="ota-hint" style="margin-bottom:16px;">快速連續開關裝置電源,依照連續次數觸發不同功能。每次動作之間要在幾秒內完成,才會被判定為同一輪連續操作,動作之間停頓太久會重新計算次數。</p>
+
+        <div class="gesture-row">
+          <div class="gesture-count">3 次</div>
+          <div class="gesture-desc">
+            <div class="gesture-title">校正電池電量</div>
+            <div class="gesture-sub">只在電池剛充飽電時執行,裝置會假設當下電壓是滿電,反推校正係數並存檔。不是滿電時執行會校正出錯誤的結果。</div>
+          </div>
+        </div>
+
+        <div class="gesture-row">
+          <div class="gesture-count">4 次</div>
+          <div class="gesture-desc">
+            <div class="gesture-title">翻轉螢幕方向</div>
+            <div class="gesture-sub">切換螢幕顯示方向(0° / 180°),設定會存檔,下次開機也會維持這次選擇的方向。</div>
+          </div>
+        </div>
+
+        <div class="gesture-row">
+          <div class="gesture-count">5 次</div>
+          <div class="gesture-desc">
+            <div class="gesture-title">清除歷史紀錄</div>
+            <div class="gesture-sub">清空裝置上儲存的所有發射紀錄(最高轉速、平均、次數、歷史曲線)。這個動作無法復原,請確認真的要清除再繼續連續開關到第 5 次。</div>
+          </div>
+        </div>
+
+        <p class="ota-hint" style="margin-top:16px; margin-bottom:0;">提醒:因為次數是連續累加的,如果不小心繼續開關超過想要的次數,會接著觸發後面次數對應的功能(例如想校正電池、卻不小心關到第 5 次,會連翻轉螢幕跟清除紀錄一起觸發)。</p>
+      </div>
+    </div>
   </div>
 
   <div class="ota-overlay" id="otaOverlay">
@@ -534,6 +580,9 @@ const menuSimulate = document.getElementById('menuSimulate');
 const menuClearDisplay = document.getElementById('menuClearDisplay');
 const menuAbout = document.getElementById('menuAbout');
 const menuFirmware = document.getElementById('menuFirmware');
+const menuGestures = document.getElementById('menuGestures');
+const gesturesOverlay = document.getElementById('gesturesOverlay');
+const gesturesCloseBtn = document.getElementById('gesturesCloseBtn');
 const otaOverlay = document.getElementById('otaOverlay');
 const otaCloseBtn = document.getElementById('otaCloseBtn');
 const otaBodyIdle = document.getElementById('otaBodyIdle');
@@ -833,6 +882,13 @@ menuAbout.addEventListener('click', () => {
 
 menuFirmware.addEventListener('click', openOtaOverlay);
 otaCloseBtn.addEventListener('click', closeOtaOverlay);
+menuGestures.addEventListener('click', () => {
+  menuPanel.classList.remove('open');
+  gesturesOverlay.classList.add('open');
+});
+gesturesCloseBtn.addEventListener('click', () => {
+  gesturesOverlay.classList.remove('open');
+});
 otaFromGithubBtn.addEventListener('click', startOtaFromGithub);
 otaFileInput.addEventListener('change', (e) => {
   if (e.target.files && e.target.files[0]) startOtaFromFile(e.target.files[0]);
