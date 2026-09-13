@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>BeyBlade X 追蹤器</title>
+<title>BeyBlade X 追蹤器(橫向)</title>
 <style>
   :root {
     --bg: #05060a;
@@ -102,6 +102,32 @@
   .menu-item:active { background: rgba(255,255,255,0.06); }
   .menu-item:disabled { color: var(--ink-dim); opacity: 0.5; cursor: default; }
   .menu-sep { height: 0.5px; background: var(--line); margin: 4px 2px; }
+
+  .ota-overlay {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: rgba(0,0,0,0.6); align-items: center; justify-content: center;
+  }
+  .ota-overlay.open { display: flex; }
+  .ota-card {
+    width: 90%; max-width: 380px; background: var(--panel); border: 0.5px solid var(--line);
+    border-radius: 16px; padding: 18px; box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+  }
+  .ota-header {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 14px; font-weight: 700; margin-bottom: 14px;
+  }
+  .ota-close-btn { border: none; background: none; color: var(--ink-dim); font-size: 14px; cursor: pointer; }
+  .ota-hint { font-size: 12px; color: var(--ink-dim); line-height: 1.6; margin: 0 0 16px; }
+  .ota-btn {
+    display: block; width: 100%; text-align: center; padding: 12px; border-radius: 10px;
+    font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 10px; box-sizing: border-box;
+  }
+  .ota-btn-primary { border: none; background: var(--gold); color: var(--gold-ink); }
+  .ota-btn-secondary { border: 0.5px solid var(--line); background: var(--bg); color: var(--ink); }
+  .ota-status-text { font-size: 13px; color: var(--ink); text-align: center; margin: 0 0 14px; min-height: 18px; }
+  .ota-progress-track { height: 8px; border-radius: 4px; background: var(--bg); overflow: hidden; margin-bottom: 8px; }
+  .ota-progress-fill { height: 100%; width: 0%; background: var(--gold); border-radius: 4px; transition: width 0.2s ease; }
+  .ota-percent { font-size: 12px; color: var(--ink-dim); text-align: center; margin: 0; }
 
   .ios-banner {
     display: none; background: #1a2a3d; border: 0.5px solid #2a4a6a; border-radius: 12px;
@@ -287,7 +313,7 @@
       <div class="logo">B</div>
       <div>
         <div class="name">BEYBLADE X TRACKER</div>
-        <div class="sub">LAUNCH TELEMETRY</div>
+        <div class="sub">LAUNCH TELEMETRY · <span id="appVersionTag">V1</span></div>
       </div>
     </div>
     <div class="topbar-right">
@@ -303,7 +329,31 @@
     <button class="menu-item" id="menuSimulate">模擬發射測試</button>
     <button class="menu-item" id="menuClearDisplay">清除畫面顯示</button>
     <div class="menu-sep"></div>
+    <button class="menu-item" id="menuFirmware">更新韌體</button>
+    <div class="menu-sep"></div>
     <button class="menu-item" id="menuAbout">關於這個 App</button>
+  </div>
+
+  <div class="ota-overlay" id="otaOverlay">
+    <div class="ota-card">
+      <div class="ota-header">
+        <span>更新韌體</span>
+        <button class="ota-close-btn" id="otaCloseBtn">✕</button>
+      </div>
+
+      <div class="ota-body" id="otaBodyIdle">
+        <p class="ota-hint">從 GitHub 專案自動抓取最新韌體,或手動選擇檔案更新。更新期間請保持連線、不要關閉此頁面。</p>
+        <button class="ota-btn ota-btn-primary" id="otaFromGithubBtn">從 GitHub 更新(推薦)</button>
+        <label class="ota-btn ota-btn-secondary" for="otaFileInput">或選擇本機 .bin 檔案</label>
+        <input type="file" id="otaFileInput" accept=".bin" style="display:none;">
+      </div>
+
+      <div class="ota-body" id="otaBodyProgress" style="display:none;">
+        <p class="ota-status-text" id="otaStatusText">準備中...</p>
+        <div class="ota-progress-track"><div class="ota-progress-fill" id="otaProgressFill"></div></div>
+        <p class="ota-percent" id="otaPercentText">0%</p>
+      </div>
+    </div>
   </div>
 
   <div class="tabbar" style="margin-bottom:14px;">
@@ -455,6 +505,9 @@ document.getElementById('iosBannerClose').addEventListener('click', () => {
 const SERVICE_UUID = 'a1b2c3d4-0000-4000-8000-00805f9b0001';
 const RPM_CHAR_UUID = 'a1b2c3d4-0001-4000-8000-00805f9b0001';
 const STATS_CHAR_UUID = 'a1b2c3d4-0002-4000-8000-00805f9b0001';
+const OTA_CONTROL_CHAR_UUID = 'a1b2c3d4-0003-4000-8000-00805f9b0001';
+const OTA_DATA_CHAR_UUID = 'a1b2c3d4-0004-4000-8000-00805f9b0001';
+const OTA_STATUS_CHAR_UUID = 'a1b2c3d4-0005-4000-8000-00805f9b0001';
 
 const HERO_MAX_RPM = 25000;
 
@@ -480,11 +533,176 @@ const menuPanel = document.getElementById('menuPanel');
 const menuSimulate = document.getElementById('menuSimulate');
 const menuClearDisplay = document.getElementById('menuClearDisplay');
 const menuAbout = document.getElementById('menuAbout');
+const menuFirmware = document.getElementById('menuFirmware');
+const otaOverlay = document.getElementById('otaOverlay');
+const otaCloseBtn = document.getElementById('otaCloseBtn');
+const otaBodyIdle = document.getElementById('otaBodyIdle');
+const otaBodyProgress = document.getElementById('otaBodyProgress');
+const otaFromGithubBtn = document.getElementById('otaFromGithubBtn');
+const otaFileInput = document.getElementById('otaFileInput');
+const otaStatusText = document.getElementById('otaStatusText');
+const otaProgressFill = document.getElementById('otaProgressFill');
+const otaPercentText = document.getElementById('otaPercentText');
 const timerValue = document.getElementById('timerValue');
 const timerStopBtn = document.getElementById('timerStopBtn');
 
 let device = null;
 let liveTimeout = null;
+let otaGattService = null;   // cached reference to the connected device's GATT service, so OTA can grab its own characteristics without redoing the whole connect flow
+
+// ---- Firmware update (OTA) ------------------------------------------
+// Point this at the raw firmware file in your GitHub repo. Using
+// raw.githubusercontent.com (not the github.com "blob" viewer page)
+// is required -- that's the URL that actually serves the file's raw
+// bytes with the right CORS headers so a webpage can fetch() it.
+// Update FIRMWARE_URL whenever you push a new .bin to the repo; this
+// page always pulls whatever is at this URL right now, so there's
+// nothing else to change on the app side when you release an update.
+const FIRMWARE_URL = 'https://raw.githubusercontent.com/HaoHao0411/Bbeyblade_x_tracker/main/firmware/last.bin';
+
+function otaLog(msg) {
+  log('[OTA] ' + msg);
+}
+
+function openOtaOverlay() {
+  if (!device || !device.gatt.connected) {
+    log('請先連接裝置,才能更新韌體');
+    return;
+  }
+  otaBodyIdle.style.display = 'block';
+  otaBodyProgress.style.display = 'none';
+  otaOverlay.classList.add('open');
+  menuPanel.classList.remove('open');
+}
+
+function closeOtaOverlay() {
+  otaOverlay.classList.remove('open');
+}
+
+function setOtaProgress(percent, text) {
+  otaBodyIdle.style.display = 'none';
+  otaBodyProgress.style.display = 'block';
+  otaProgressFill.style.width = percent + '%';
+  otaPercentText.textContent = percent + '%';
+  otaStatusText.textContent = text;
+}
+
+async function startOtaFromGithub() {
+  try {
+    setOtaProgress(0, '正在從 GitHub 下載韌體...');
+    const res = await fetch(FIRMWARE_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('下載失敗 (HTTP ' + res.status + ')');
+    const buffer = await res.arrayBuffer();
+    otaLog('從 GitHub 下載完成,大小 ' + buffer.byteLength + ' bytes');
+    await runOtaTransfer(buffer);
+  } catch (e) {
+    setOtaProgress(0, '下載失敗: ' + e.message);
+    otaLog('下載失敗: ' + e.message);
+  }
+}
+
+async function startOtaFromFile(file) {
+  try {
+    setOtaProgress(0, '正在讀取檔案...');
+    const buffer = await file.arrayBuffer();
+    otaLog('已讀取本機檔案,大小 ' + buffer.byteLength + ' bytes');
+    await runOtaTransfer(buffer);
+  } catch (e) {
+    setOtaProgress(0, '讀取檔案失敗: ' + e.message);
+    otaLog('讀取檔案失敗: ' + e.message);
+  }
+}
+
+// Core transfer routine, shared by both the GitHub and local-file paths
+// above. Protocol: write "START:<size>" to the control characteristic,
+// stream the file to the data characteristic in fixed-size chunks using
+// write-without-response (faster -- no per-chunk round trip), then
+// write "END" and wait for the device's own notified success/error
+// result before declaring victory. All progress/state comes from the
+// device's OTA_STATUS notifications, not just guessed from how much
+// we've sent -- the device is the one actually writing to flash, so
+// it's the authoritative source of truth here.
+async function runOtaTransfer(buffer) {
+  const service = await device.gatt.getPrimaryService(SERVICE_UUID);
+  const controlChar = await service.getCharacteristic(OTA_CONTROL_CHAR_UUID);
+  const dataChar = await service.getCharacteristic(OTA_DATA_CHAR_UUID);
+  const statusChar = await service.getCharacteristic(OTA_STATUS_CHAR_UUID);
+
+  let finished = false;
+  let succeeded = false;
+
+  const onStatus = (event) => {
+    let msg;
+    try {
+      msg = JSON.parse(new TextDecoder().decode(event.target.value.buffer));
+    } catch (e) {
+      return;
+    }
+    if (msg.state === 'progress') {
+      setOtaProgress(msg.percent, '更新中... (' + msg.percent + '%)');
+    } else if (msg.state === 'success') {
+      finished = true; succeeded = true;
+      setOtaProgress(100, '更新成功!裝置即將重新開機');
+      otaLog('更新成功,裝置重新開機中');
+    } else if (msg.state === 'error') {
+      finished = true; succeeded = false;
+      setOtaProgress(0, '更新失敗: ' + (msg.msg || '未知錯誤'));
+      otaLog('更新失敗: ' + (msg.msg || '未知錯誤'));
+    } else if (msg.state === 'aborted') {
+      finished = true; succeeded = false;
+      setOtaProgress(0, '更新已取消');
+    }
+  };
+  await statusChar.startNotifications();
+  statusChar.addEventListener('characteristicvaluechanged', onStatus);
+
+  const CHUNK_SIZE = 240;   // conservative default -- comfortably under the smallest realistic negotiated BLE MTU, avoids relying on a larger MTU actually having been negotiated
+  const bytes = new Uint8Array(buffer);
+
+  await controlChar.writeValue(new TextEncoder().encode('START:' + bytes.length));
+  otaLog('已送出開始指令,大小 ' + bytes.length + ' bytes,開始傳輸...');
+
+  for (let offset = 0; offset < bytes.length; offset += CHUNK_SIZE) {
+    if (finished) break;   // device already reported an error mid-transfer -- stop sending more
+    const chunk = bytes.slice(offset, offset + CHUNK_SIZE);
+    await dataChar.writeValueWithoutResponse(chunk);
+  }
+
+  if (!finished) {
+    try {
+      await controlChar.writeValue(new TextEncoder().encode('END'));
+      otaLog('傳輸完成,等待裝置驗證...');
+    } catch (e) {
+      // The device reboots into the new firmware right after a
+      // successful update, which drops the BLE connection -- if that
+      // happens to land while this "END" write is still waiting for
+      // its acknowledgement, the write itself can come back as a GATT
+      // error even though the update genuinely succeeded. Don't treat
+      // this as a hard failure on its own; fall through to the wait
+      // loop below and let the device's own "success" notification (if
+      // it already arrived, or still arrives in the next moment) be
+      // the actual source of truth instead of this write's outcome.
+      otaLog('傳送結束指令時連線中斷(這在更新成功、裝置重開機時是正常現象,不代表更新失敗)');
+    }
+  }
+
+  // Give the device's final success/error notification a few seconds to
+  // arrive before giving up on waiting for it.
+  const waitStart = Date.now();
+  while (!finished && Date.now() - waitStart < 8000) {
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  if (!finished) {
+    // Never got an explicit success/error notification at all within
+    // the wait window -- genuinely inconclusive, so say so rather than
+    // silently assuming either outcome.
+    setOtaProgress(0, '未收到裝置的最終回應,請確認裝置是否已重新開機、韌體是否更新成功');
+    otaLog('未收到最終回應,狀態不明,請自行確認裝置版本');
+  }
+
+  statusChar.removeEventListener('characteristicvaluechanged', onStatus);
+}
 
 // ---- Menu ---------------------------------------------------------
 menuBtn.addEventListener('click', () => menuPanel.classList.toggle('open'));
@@ -610,7 +828,14 @@ menuClearDisplay.addEventListener('click', () => {
 
 menuAbout.addEventListener('click', () => {
   menuPanel.classList.remove('open');
-  log('BeyBlade X 追蹤器 · 透過藍牙即時顯示發射轉速與歷史趨勢');
+  log('BeyBlade X 追蹤器 V1 · 透過藍牙即時顯示發射轉速與歷史趨勢');
+});
+
+menuFirmware.addEventListener('click', openOtaOverlay);
+otaCloseBtn.addEventListener('click', closeOtaOverlay);
+otaFromGithubBtn.addEventListener('click', startOtaFromGithub);
+otaFileInput.addEventListener('change', (e) => {
+  if (e.target.files && e.target.files[0]) startOtaFromFile(e.target.files[0]);
 });
 
 function log(msg) {
