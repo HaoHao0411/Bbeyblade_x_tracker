@@ -673,9 +673,28 @@ async function startOtaFromFile(file) {
 // it's the authoritative source of truth here.
 async function runOtaTransfer(buffer) {
   const service = await device.gatt.getPrimaryService(SERVICE_UUID);
-  const controlChar = await service.getCharacteristic(OTA_CONTROL_CHAR_UUID);
-  const dataChar = await service.getCharacteristic(OTA_DATA_CHAR_UUID);
-  const statusChar = await service.getCharacteristic(OTA_STATUS_CHAR_UUID);
+
+  // Look up the OTA characteristics FIRST, on their own, before
+  // touching anything else. Firmware built before OTA support existed
+  // simply doesn't expose these characteristics at all -- trying to
+  // write a START/data/END sequence to characteristics that don't
+  // exist can, depending on the device, still appear to "do
+  // something" (the connection may drop, the board may even reboot
+  // from something unrelated) without any actual firmware update ever
+  // happening, which is confusing and easy to mistake for a real
+  // update that silently failed. Catching the lookup failure here
+  // gives a clear, specific, upfront message instead of leaving the
+  // person guessing why "the update ran but nothing changed."
+  let controlChar, dataChar, statusChar;
+  try {
+    controlChar = await service.getCharacteristic(OTA_CONTROL_CHAR_UUID);
+    dataChar = await service.getCharacteristic(OTA_DATA_CHAR_UUID);
+    statusChar = await service.getCharacteristic(OTA_STATUS_CHAR_UUID);
+  } catch (e) {
+    setOtaProgress(0, '此裝置目前的韌體版本不支援線上更新,請改用 USB 燒錄更新一次到有支援此功能的版本');
+    otaLog('OTA 特徵值不存在 -- 裝置韌體版本過舊,不支援線上更新');
+    return;
+  }
 
   let finished = false;
   let succeeded = false;
