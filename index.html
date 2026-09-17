@@ -733,7 +733,16 @@ async function runOtaTransfer(buffer) {
   for (let offset = 0; offset < bytes.length; offset += CHUNK_SIZE) {
     if (finished) break;   // device already reported an error mid-transfer -- stop sending more
     const chunk = bytes.slice(offset, offset + CHUNK_SIZE);
-    await dataChar.writeValueWithoutResponse(chunk);
+    // writeValue() (write WITH response) instead of
+    // writeValueWithoutResponse() -- this await now only resolves once
+    // the device's BLE stack has actually acknowledged this specific
+    // chunk, so a dropped packet surfaces immediately as a rejected
+    // write on that chunk instead of silently vanishing and only
+    // showing up as a "size mismatch" after the entire transfer has
+    // already finished. Slower than write-without-response, but a
+    // several-hundred-KB firmware transfer completing reliably matters
+    // more here than shaving off transfer time.
+    await dataChar.writeValue(chunk);
   }
 
   if (!finished) {
@@ -1077,8 +1086,16 @@ function renderFlightCurve(samples) {
 
   const peakDot = document.createElementNS(ns, 'circle');
   const peakIdx = rawRpms.indexOf(maxRpm);
+  // Plot the dot at the TRUE (unsmoothed) peak height, not the smoothed
+  // curve's height at that same index -- smoothing softens a sharp
+  // single-sample spike, so the drawn line at that point sits lower
+  // than the actual peak the label reports. Using maxRpm here (instead
+  // of rpms[peakIdx]) makes the dot land exactly where the number says
+  // it should, even if that means it sits slightly above the smoothed
+  // line right at that spot rather than sitting exactly on it.
+  const peakY = pad + (1 - (maxRpm - minRpm) / rpmRange) * (h - pad * 2);
   peakDot.setAttribute('cx', points[peakIdx][0].toFixed(1));
-  peakDot.setAttribute('cy', points[peakIdx][1].toFixed(1));
+  peakDot.setAttribute('cy', peakY.toFixed(1));
   peakDot.setAttribute('r', '4');
   peakDot.setAttribute('fill', '#00e5ff');
   flightCurveSvg.appendChild(peakDot);
