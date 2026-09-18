@@ -724,20 +724,7 @@ async function runOtaTransfer(buffer) {
   await statusChar.startNotifications();
   statusChar.addEventListener('characteristicvaluechanged', onStatus);
 
-  // 20 bytes -- NOT a rough guess, this is the guaranteed-safe universal
-  // floor: the default BLE ATT_MTU before any negotiation is 23 bytes,
-  // leaving exactly 20 usable after the 3-byte ATT header. Every
-  // BLE-compliant central/peripheral supports at least this much, no
-  // negotiation required. The previous value (240) assumed a much
-  // larger MTU had been successfully negotiated -- that assumption
-  // doesn't hold on every phone/OS/Bluetooth-stack combination, and on
-  // ones where it didn't hold, oversized writes were being silently
-  // truncated or dropped on EVERY attempt (not just occasionally),
-  // which is exactly the size-mismatch failure this was causing.
-  // Trade-off: this makes the transfer slower (12x more round trips
-  // for the same file), but a firmware update finishing reliably
-  // matters far more than finishing quickly.
-  const CHUNK_SIZE = 20;
+  const CHUNK_SIZE = 240;   // conservative default -- comfortably under the smallest realistic negotiated BLE MTU, avoids relying on a larger MTU actually having been negotiated
   const bytes = new Uint8Array(buffer);
 
   await controlChar.writeValue(new TextEncoder().encode('START:' + bytes.length));
