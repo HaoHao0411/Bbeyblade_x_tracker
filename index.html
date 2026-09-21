@@ -388,8 +388,10 @@
       </div>
 
       <div class="ota-body" id="otaBodyIdle">
-        <p class="ota-hint">從 GitHub 專案自動抓取最新韌體,或手動選擇檔案更新。更新期間請保持連線、不要關閉此頁面。</p>
-        <button class="ota-btn ota-btn-primary" id="otaFromGithubBtn">從 GitHub 更新(推薦)</button>
+        <p class="ota-hint">不同發射器的感測範圍不同,請先選擇跟你裝置相符的版本。更新期間請保持連線、不要關閉此頁面。</p>
+        <button class="ota-btn ota-btn-primary" data-profile="900">感測範圍 900(推薦先試這個)</button>
+        <button class="ota-btn ota-btn-primary" data-profile="1100">感測範圍 1100</button>
+        <button class="ota-btn ota-btn-primary" data-profile="1400">感測範圍 1400</button>
         <label class="ota-btn ota-btn-secondary" for="otaFileInput">或選擇本機 .bin 檔案</label>
         <input type="file" id="otaFileInput" accept=".bin" style="display:none;">
       </div>
@@ -587,7 +589,7 @@ const otaOverlay = document.getElementById('otaOverlay');
 const otaCloseBtn = document.getElementById('otaCloseBtn');
 const otaBodyIdle = document.getElementById('otaBodyIdle');
 const otaBodyProgress = document.getElementById('otaBodyProgress');
-const otaFromGithubBtn = document.getElementById('otaFromGithubBtn');
+const otaProfileBtns = document.querySelectorAll('.ota-btn-primary[data-profile]');
 const otaFileInput = document.getElementById('otaFileInput');
 const otaStatusText = document.getElementById('otaStatusText');
 const otaProgressFill = document.getElementById('otaProgressFill');
@@ -600,14 +602,16 @@ let liveTimeout = null;
 let otaGattService = null;   // cached reference to the connected device's GATT service, so OTA can grab its own characteristics without redoing the whole connect flow
 
 // ---- Firmware update (OTA) ------------------------------------------
-// Point this at the raw firmware file in your GitHub repo. Using
-// raw.githubusercontent.com (not the github.com "blob" viewer page)
-// is required -- that's the URL that actually serves the file's raw
-// bytes with the right CORS headers so a webpage can fetch() it.
-// Update FIRMWARE_URL whenever you push a new .bin to the repo; this
-// page always pulls whatever is at this URL right now, so there's
-// nothing else to change on the app side when you release an update.
-const FIRMWARE_URL = 'https://raw.githubusercontent.com/HaoHao0411/Bbeyblade_x_tracker/main/firmware/last.bin';
+// Different launchers' sensors read different raw ranges, so there are
+// three separate firmware builds -- one per sensor-range profile --
+// rather than a single "latest" file. Each profile name (900/1100/1400)
+// corresponds exactly to a file of that name in the repo, e.g.
+// firmware/900.bin. Update these file names whenever you push new
+// builds for a given profile; there's nothing else to change on the
+// app side.
+function firmwareUrlForProfile(profile) {
+  return 'https://raw.githubusercontent.com/HaoHao0411/Bbeyblade_x_tracker/main/firmware/' + profile + '.bin';
+}
 
 function otaLog(msg) {
   log('[OTA] ' + msg);
@@ -638,12 +642,13 @@ function setOtaProgress(percent, text) {
 
 let otaBusy = false;   // guards against a second update being triggered while one is already running -- clicking the button again mid-transfer used to kick off a second, overlapping runOtaTransfer() that fought with the first over the same BLE characteristics
 
-async function startOtaFromGithub() {
+async function startOtaFromGithub(profile) {
   if (otaBusy) { otaLog('更新進行中,請等待這次完成再試'); return; }
   otaBusy = true;
   try {
-    setOtaProgress(0, '正在從 GitHub 下載韌體...');
-    const res = await fetch(FIRMWARE_URL, { cache: 'no-store' });
+    const url = firmwareUrlForProfile(profile);
+    setOtaProgress(0, '正在從 GitHub 下載韌體(感測範圍 ' + profile + ')...');
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('下載失敗 (HTTP ' + res.status + ')');
 
     // Read the response body incrementally instead of res.arrayBuffer()
@@ -957,7 +962,9 @@ menuGestures.addEventListener('click', () => {
 gesturesCloseBtn.addEventListener('click', () => {
   gesturesOverlay.classList.remove('open');
 });
-otaFromGithubBtn.addEventListener('click', startOtaFromGithub);
+otaProfileBtns.forEach(btn => {
+  btn.addEventListener('click', () => startOtaFromGithub(btn.dataset.profile));
+});
 otaFileInput.addEventListener('change', (e) => {
   if (e.target.files && e.target.files[0]) startOtaFromFile(e.target.files[0]);
 });
