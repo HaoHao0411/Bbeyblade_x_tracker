@@ -389,9 +389,9 @@
 
       <div class="ota-body" id="otaBodyIdle">
         <p class="ota-hint">不同發射器的感測範圍不同,請先選擇跟你裝置相符的版本。更新期間請保持連線、不要關閉此頁面。</p>
-        <button class="ota-btn ota-btn-primary" data-profile="900">感測範圍 900</button>
+        <button class="ota-btn ota-btn-primary" data-profile="900">感測範圍 900(推薦先試這個)</button>
         <button class="ota-btn ota-btn-primary" data-profile="1100">感測範圍 1100</button>
-        <button class="ota-btn ota-btn-primary" data-profile="1400">感測範圍 1400(推薦先試這個)</button>
+        <button class="ota-btn ota-btn-primary" data-profile="1400">感測範圍 1400</button>
         <label class="ota-btn ota-btn-secondary" for="otaFileInput">或選擇本機 .bin 檔案</label>
         <input type="file" id="otaFileInput" accept=".bin" style="display:none;">
       </div>
@@ -743,6 +743,10 @@ async function runOtaTransfer(buffer) {
 
   let finished = false;
   let succeeded = false;
+  let startedMsg = null;      // the device's "started" reply (proto 2 firmware adds proto/block)
+  let ackedPos = 0;           // bytes the device has confirmed written to flash (proto 2)
+  let lastAckAt = Date.now(); // last time we heard any ack
+  let rewindTo = null;        // device asked us to resend from here (gap)
 
   const onStatus = (event) => {
     let msg;
@@ -751,7 +755,14 @@ async function runOtaTransfer(buffer) {
     } catch (e) {
       return;
     }
-    if (msg.state === 'progress') {
+    if (msg.state === 'started') {
+      startedMsg = msg;
+    } else if (msg.state === 'ack') {
+      const recv = Number(msg.recv) || 0;
+      if (recv > ackedPos) ackedPos = recv;
+      lastAckAt = Date.now();
+      if (msg.gap) rewindTo = recv;
+    } else if (msg.state === 'progress') {
       setOtaProgress(msg.percent, '更新中... (' + msg.percent + '%)');
     } else if (msg.state === 'success') {
       finished = true; succeeded = true;
@@ -761,6 +772,9 @@ async function runOtaTransfer(buffer) {
       finished = true; succeeded = false;
       setOtaProgress(0, '更新失敗: ' + (msg.msg || '未知錯誤'));
       otaLog('更新失敗: ' + (msg.msg || '未知錯誤'));
+      if (String(msg.msg || '').indexOf('size mismatch') >= 0) {
+        otaLog('裝置韌體是 V36 以前的舊版,無法補傳遺失的封包。請改用 Android / 電腦 Chrome 更新一次,或用 USB 燒錄 V37 以後的版本,之後 iPhone 就能穩定更新');
+      }
     } else if (msg.state === 'aborted') {
       finished = true; succeeded = false;
       setOtaProgress(0, '更新已取消');
@@ -769,61 +783,142 @@ async function runOtaTransfer(buffer) {
   await statusChar.startNotifications();
   statusChar.addEventListener('characteristicvaluechanged', onStatus);
 
-  const CHUNK_SIZE = 240;
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const enc = new TextEncoder();
   const bytes = new Uint8Array(buffer);
+  const total = bytes.length;
+  const ios = isIOS();
 
-  await controlChar.writeValue(new TextEncoder().encode('START:' + bytes.length));
-  otaLog('已送出開始指令,大小 ' + bytes.length + ' bytes,開始傳輸...');
+  // Prefer write-without-response when the characteristic allows it (V37+):
+  // flow control is done by the device's acks, not by per-packet
+  // round trips, so there's no reason to pay for them.
+  const canWriteNR = !!(dataChar.properties && dataChar.properties.writeWithoutResponse
+                        && typeof dataChar.writeValueWithoutResponse === 'function');
+  const writeData = (pkt) => canWriteNR ? dataChar.writeValueWithoutResponse(pkt) : dataChar.writeValue(pkt);
 
-  for (let offset = 0; offset < bytes.length; offset += CHUNK_SIZE) {
-    if (finished) break;   // device already reported an error mid-transfer -- stop sending more
-    const chunk = bytes.slice(offset, offset + CHUNK_SIZE);
-    // writeValue() (write WITH response) instead of
-    // writeValueWithoutResponse() -- this await now only resolves once
-    // the device's BLE stack has actually acknowledged this specific
-    // chunk, so a dropped packet surfaces immediately as a rejected
-    // write on that chunk instead of silently vanishing and only
-    // showing up as a "size mismatch" after the entire transfer has
-    // already finished. Slower than write-without-response, but a
-    // several-hundred-KB firmware transfer completing reliably matters
-    // more here than shaving off transfer time.
-    await dataChar.writeValue(chunk);
-  }
+  const fail = async (text) => {
+    finished = true; succeeded = false;
+    setOtaProgress(0, text);
+    otaLog(text);
+    try { await controlChar.writeValue(enc.encode('ABORT')); } catch (e) {}
+  };
 
-  if (!finished) {
-    try {
-      await controlChar.writeValue(new TextEncoder().encode('END'));
-      otaLog('傳輸完成,等待裝置驗證...');
-    } catch (e) {
-      // The device reboots into the new firmware right after a
-      // successful update, which drops the BLE connection -- if that
-      // happens to land while this "END" write is still waiting for
-      // its acknowledgement, the write itself can come back as a GATT
-      // error even though the update genuinely succeeded. Don't treat
-      // this as a hard failure on its own; fall through to the wait
-      // loop below and let the device's own "success" notification (if
-      // it already arrived, or still arrives in the next moment) be
-      // the actual source of truth instead of this write's outcome.
-      otaLog('傳送結束指令時連線中斷(這在更新成功、裝置重開機時是正常現象,不代表更新失敗)');
+  try {
+    // Ask for proto 2 (offset + ack). Firmware before V37 parses
+    // "START:<n>:2" as "START:<n>" and answers without a proto field (or
+    // not at all), in which case we fall back to the old raw stream.
+    await controlChar.writeValue(enc.encode('START:' + total + ':2'));
+    const t0 = Date.now();
+    while (!startedMsg && !finished && Date.now() - t0 < 3000) await sleep(50);
+    if (finished) return;   // device reported an error (e.g. begin failed)
+
+    if (startedMsg && Number(startedMsg.proto) === 2) {
+      // ---------------- proto 2: offset packets, device-paced ----------------
+      const BLOCK = Number(startedMsg.block) || 2048;
+      const WINDOW = BLOCK * 2;                    // never run more than 2 ack blocks ahead
+      const PAYLOAD = (ios ? 150 : 240) - 4;       // 4-byte offset header
+      otaLog('已送出開始指令,大小 ' + total + ' bytes,使用確認式傳輸(每段 ' + BLOCK + ' bytes 由裝置確認)...');
+
+      let sendPos = 0;
+      let polls = 0;
+      let lastProgressPos = 0;
+      let lastProgressAt = Date.now();
+      let lastShownPct = -1;
+      let resends = 0;
+
+      while (!finished) {
+        if (!device.gatt.connected) { await fail('傳輸中藍牙連線中斷,請重新連線後再試一次'); break; }
+
+        if (rewindTo !== null) {
+          if (rewindTo < sendPos) { resends++; }
+          sendPos = rewindTo;
+          rewindTo = null;
+        }
+
+        if (ackedPos > lastProgressPos) {
+          lastProgressPos = ackedPos; lastProgressAt = Date.now(); polls = 0;
+          const pct = Math.floor(ackedPos * 100 / total);
+          if (pct !== lastShownPct) {
+            lastShownPct = pct;
+            setOtaProgress(pct, '更新中... (' + pct + '%)' + (resends ? ' · 已補傳 ' + resends + ' 次' : ''));
+          }
+        }
+        if (Date.now() - lastProgressAt > 20000) { await fail('更新失敗:裝置 20 秒沒有進度,請靠近裝置後再試一次'); break; }
+
+        if (ackedPos >= total) break;              // device has every byte -> go send END
+
+        if (sendPos < total && sendPos < ackedPos + WINDOW) {
+          const n = Math.min(PAYLOAD, total - sendPos);
+          const pkt = new Uint8Array(4 + n);
+          pkt[0] = sendPos & 0xff; pkt[1] = (sendPos >>> 8) & 0xff;
+          pkt[2] = (sendPos >>> 16) & 0xff; pkt[3] = (sendPos >>> 24) & 0xff;
+          pkt.set(bytes.subarray(sendPos, sendPos + n), 4);
+          try {
+            await writeData(pkt);
+            sendPos += n;
+          } catch (e) {
+            // e.g. "GATT operation already in progress" -- back off, resend same packet
+            await sleep(30);
+          }
+          continue;
+        }
+
+        // window full (or everything sent) -- wait for the device to catch up
+        await sleep(20);
+        if (Date.now() - lastAckAt > 400) {
+          // no ack for a while: the tail of the window was probably lost,
+          // so no later packet revealed the gap -- ask where the device is
+          lastAckAt = Date.now();
+          polls++;
+          try { await controlChar.writeValue(enc.encode('POLL')); } catch (e) {}
+          if (polls > 40) { await fail('更新失敗:裝置沒有回應,請靠近裝置後再試一次'); break; }
+        }
+      }
+
+      if (!finished) {
+        setOtaProgress(100, '傳輸完成,等待裝置驗證...');
+        try {
+          await controlChar.writeValue(enc.encode('END'));
+          otaLog('傳輸完成(補傳 ' + resends + ' 次),等待裝置驗證...');
+        } catch (e) {
+          otaLog('傳送結束指令時連線中斷(這在更新成功、裝置重開機時是正常現象,不代表更新失敗)');
+        }
+      }
+    } else {
+      // ---------------- legacy: firmware V36 and earlier ----------------
+      // No way to detect or resend lost packets with this firmware, so on
+      // iPhone send smaller packets and pace them; Bluefy reports writes
+      // as done before they really reach the device.
+      const CHUNK_SIZE = ios ? 150 : 240;
+      const PACE_MS = ios ? 20 : 0;
+      otaLog('已送出開始指令,大小 ' + total + ' bytes,開始傳輸(舊版韌體相容模式' + (ios ? ',iPhone 慢速' : '') + ')...');
+      for (let offset = 0; offset < total; offset += CHUNK_SIZE) {
+        if (finished) break;
+        if (!device.gatt.connected) { await fail('傳輸中藍牙連線中斷,請重新連線後再試一次'); break; }
+        await dataChar.writeValue(bytes.slice(offset, offset + CHUNK_SIZE));
+        if (PACE_MS) await sleep(PACE_MS);
+      }
+      if (!finished) {
+        try {
+          await controlChar.writeValue(enc.encode('END'));
+          otaLog('傳輸完成,等待裝置驗證...');
+        } catch (e) {
+          otaLog('傳送結束指令時連線中斷(這在更新成功、裝置重開機時是正常現象,不代表更新失敗)');
+        }
+      }
     }
-  }
 
-  // Give the device's final success/error notification a few seconds to
-  // arrive before giving up on waiting for it.
-  const waitStart = Date.now();
-  while (!finished && Date.now() - waitStart < 8000) {
-    await new Promise(r => setTimeout(r, 200));
-  }
+    // Give the device's final success/error notification a few seconds to arrive.
+    const waitStart = Date.now();
+    while (!finished && Date.now() - waitStart < 8000) await sleep(200);
 
-  if (!finished) {
-    // Never got an explicit success/error notification at all within
-    // the wait window -- genuinely inconclusive, so say so rather than
-    // silently assuming either outcome.
-    setOtaProgress(0, '未收到裝置的最終回應,請確認裝置是否已重新開機、韌體是否更新成功');
-    otaLog('未收到最終回應,狀態不明,請自行確認裝置版本');
+    if (!finished) {
+      setOtaProgress(0, '未收到裝置的最終回應,請確認裝置是否已重新開機、韌體是否更新成功');
+      otaLog('未收到最終回應,狀態不明,請自行確認裝置版本');
+    }
+  } finally {
+    statusChar.removeEventListener('characteristicvaluechanged', onStatus);
   }
-
-  statusChar.removeEventListener('characteristicvaluechanged', onStatus);
 }
 
 // ---- Menu ---------------------------------------------------------
