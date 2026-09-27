@@ -128,6 +128,46 @@
   .ota-progress-track { height: 8px; border-radius: 4px; background: var(--bg); overflow: hidden; margin-bottom: 8px; }
   .ota-progress-fill { height: 100%; width: 0%; background: var(--gold); border-radius: 4px; transition: width 0.2s ease; }
   .ota-percent { font-size: 12px; color: var(--ink-dim); text-align: center; margin: 0; }
+  /* ---- Sensor settings (V14) ---- */
+  .sensor-card { max-width: 640px; max-height: 92vh; overflow-y: auto; background: #0d1120; }
+  .sensor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 560px) { .sensor-grid { grid-template-columns: 1fr; } }
+  .sensor-live-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .sensor-live-num { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  .sensor-live-label { font-size: 10px; color: var(--ink-dim); letter-spacing: 1.5px; margin-bottom: 4px; }
+  .zone-lamp {
+    min-width: 92px; text-align: center; padding: 8px 10px; border-radius: 10px;
+    font-size: 14px; font-weight: 800; border: 1px solid var(--line); color: var(--ink-dim);
+  }
+  .zone-lamp.black { background: #000; color: #fff; border-color: #fff; }
+  .zone-lamp.white { background: #f4f6fa; color: #05060a; border-color: #f4f6fa; }
+  .zone-lamp.mid { background: rgba(255, 196, 0, 0.14); color: #ffc400; border-color: rgba(255, 196, 0, 0.5); }
+  .sensor-bar { position: relative; height: 26px; border-radius: 6px; background: #1a2030; overflow: hidden; margin: 4px 0 4px; }
+  .sensor-bar .zone-w { position: absolute; top: 0; bottom: 0; left: 0; background: rgba(244, 246, 250, 0.22); }
+  .sensor-bar .zone-b { position: absolute; top: 0; bottom: 0; right: 0; background: rgba(0, 0, 0, 0.75); }
+  .sensor-bar .thr { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; }
+  .sensor-bar .thr.w { background: #f4f6fa; }
+  .sensor-bar .thr.b { background: var(--gold); }
+  .sensor-bar .needle { position: absolute; top: -2px; bottom: -2px; width: 4px; margin-left: -2px; background: #ffc400; border-radius: 2px; box-shadow: 0 0 6px #ffc400; transition: left 0.08s linear; }
+  .sensor-scale { display: flex; justify-content: space-between; font-size: 10px; color: var(--ink-dim); margin-bottom: 12px; }
+  .sensor-field { margin-bottom: 12px; }
+  .sensor-field-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .sensor-field-head input[type=number] {
+    width: 76px; padding: 4px 6px; border-radius: 6px; border: 0.5px solid var(--line);
+    background: var(--bg); color: var(--ink); font-size: 13px; text-align: right;
+  }
+  .sensor-field input[type=range] { width: 100%; accent-color: var(--gold); }
+  .sensor-note { font-size: 11.5px; color: var(--ink-dim); line-height: 1.6; margin: 0 0 10px; }
+  .sensor-msg { font-size: 12px; min-height: 18px; margin: 4px 0 10px; line-height: 1.5; }
+  .sensor-msg.ok { color: #4ade80; }
+  .sensor-msg.err { color: #ff6b6b; }
+  .sensor-btn-row { display: flex; gap: 8px; }
+  .sensor-btn-row .ota-btn { margin-bottom: 8px; }
+  .sensor-suggest { border: 0.5px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 12px; }
+  .sensor-suggest-title { font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+  .sensor-rec { font-size: 12px; color: var(--ink-dim); margin: 0 0 8px; }
+  .sensor-rec b { color: var(--ink); }
+  .sensor-suggest-out { font-size: 13px; font-weight: 700; color: var(--gold); margin: 0 0 8px; min-height: 18px; }
   .gesture-row { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
   .gesture-count {
     flex: 0 0 auto; min-width: 44px; text-align: center; font-size: 15px; font-weight: 700;
@@ -336,6 +376,7 @@
     <button class="menu-item" id="menuSimulate">模擬發射測試</button>
     <button class="menu-item" id="menuClearDisplay">清除畫面顯示</button>
     <div class="menu-sep"></div>
+    <button class="menu-item" id="menuSensor">感測器設定</button>
     <button class="menu-item" id="menuFirmware">更新韌體</button>
     <button class="menu-item" id="menuGestures">開關手勢說明</button>
     <div class="menu-sep"></div>
@@ -376,6 +417,67 @@
         </div>
 
         <p class="ota-hint" style="margin-top:16px; margin-bottom:0;">提醒:因為次數是連續累加的,如果不小心繼續開關超過想要的次數,會接著觸發後面次數對應的功能(例如想校正電池、卻不小心關到第 5 次,會連翻轉螢幕跟清除紀錄一起觸發)。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="ota-overlay" id="sensorOverlay">
+    <div class="ota-card sensor-card">
+      <div class="ota-header">
+        <span>感測器設定</span>
+        <button class="ota-close-btn" id="sensorCloseBtn">✕</button>
+      </div>
+
+      <div id="sensorUnsupported" style="display:none;">
+        <p class="ota-hint">此裝置目前的韌體不支援感測器設定,請先到「更新韌體」更新到 V38 以後的版本。</p>
+      </div>
+
+      <div id="sensorBody" class="sensor-grid" style="display:none;">
+        <div>
+          <div class="sensor-live-row">
+            <div>
+              <div class="sensor-live-label">目前感測數值</div>
+              <div class="sensor-live-num" id="sensorLiveNum">--</div>
+            </div>
+            <div class="zone-lamp" id="sensorZoneLamp">--</div>
+          </div>
+          <div class="sensor-bar" id="sensorBar">
+            <div class="zone-w" id="sensorZoneW"></div>
+            <div class="zone-b" id="sensorZoneB"></div>
+            <div class="thr w" id="sensorThrW"></div>
+            <div class="thr b" id="sensorThrB"></div>
+            <div class="needle" id="sensorNeedle" style="left:0%;"></div>
+          </div>
+          <div class="sensor-scale"><span>0</span><span>白 ← → 黑</span><span>4095</span></div>
+          <p class="sensor-note">把陀螺的黑色、白色分別轉到感測器前面,確認燈號各自亮「黑」和「白」。黃色是兩個門檻中間,不會被判定。</p>
+
+          <div class="sensor-suggest">
+            <div class="sensor-suggest-title">建議值</div>
+            <p class="sensor-rec">黑色讀值 <b id="sensorRecBlack">未記錄</b> · 白色讀值 <b id="sensorRecWhite">未記錄</b></p>
+            <div class="sensor-btn-row">
+              <button class="ota-btn ota-btn-secondary" id="sensorRecBlackBtn">記錄黑色</button>
+              <button class="ota-btn ota-btn-secondary" id="sensorRecWhiteBtn">記錄白色</button>
+            </div>
+            <p class="sensor-suggest-out" id="sensorSuggestOut"></p>
+            <button class="ota-btn ota-btn-secondary" id="sensorApplySuggestBtn" style="display:none; margin-bottom:0;">套用建議值</button>
+          </div>
+        </div>
+
+        <div>
+          <p class="sensor-note" id="sensorDeviceInfo">讀取裝置設定中...</p>
+          <div class="sensor-field">
+            <div class="sensor-field-head"><span>黑色門檻(≥ 這個值算黑)</span><input type="number" id="sensorBlackNum" min="0" max="4095" step="10"></div>
+            <input type="range" id="sensorBlackRange" min="0" max="4095" step="10">
+          </div>
+          <div class="sensor-field">
+            <div class="sensor-field-head"><span>白色門檻(≤ 這個值算白)</span><input type="number" id="sensorWhiteNum" min="0" max="4095" step="10"></div>
+            <input type="range" id="sensorWhiteRange" min="0" max="4095" step="10">
+          </div>
+          <p class="sensor-msg" id="sensorMsg"></p>
+          <button class="ota-btn ota-btn-primary" id="sensorSaveBtn">寫入裝置</button>
+          <button class="ota-btn ota-btn-secondary" id="sensorResetBtn">恢復預設</button>
+          <p class="sensor-note" style="margin-bottom:0;">調整時燈號會即時用新門檻預覽,按「寫入裝置」才會真的存進裝置,關機也會保留。</p>
+        </div>
       </div>
     </div>
   </div>
@@ -610,7 +712,7 @@ let otaGattService = null;   // cached reference to the connected device's GATT 
 // builds for a given profile; there's nothing else to change on the
 // app side.
 function firmwareUrlForProfile(profile) {
-  return 'https://raw.githubusercontent.com/HaoHao0411/Bbeyblade_x_tracker/main/firmware/' + profile + '.bin';
+  return 'https://raw.githubusercontent.com/HaoHao0411/Bbeyblade_x_TEST/main/firmware/' + profile + '.bin';
 }
 
 function otaLog(msg) {
@@ -921,10 +1023,297 @@ async function runOtaTransfer(buffer) {
   }
 }
 
+// ---- Sensor settings (V14, needs firmware V38+) ---------------------
+// Shows the live sensor reading against the black/white thresholds and
+// lets the user write new thresholds into the device. The device only
+// streams readings while this overlay is open ("LIVE:1" / "LIVE:0").
+const SENSOR_LIVE_CHAR_UUID = 'a1b2c3d4-0006-4000-8000-00805f9b0001';
+const THRESH_CHAR_UUID = 'a1b2c3d4-0007-4000-8000-00805f9b0001';
+const SENSOR_ADC_MAX = 4095;
+
+const menuSensor = document.getElementById('menuSensor');
+const sensorOverlay = document.getElementById('sensorOverlay');
+const sensorCloseBtn = document.getElementById('sensorCloseBtn');
+const sensorUnsupported = document.getElementById('sensorUnsupported');
+const sensorBody = document.getElementById('sensorBody');
+const sensorLiveNum = document.getElementById('sensorLiveNum');
+const sensorZoneLamp = document.getElementById('sensorZoneLamp');
+const sensorZoneW = document.getElementById('sensorZoneW');
+const sensorZoneB = document.getElementById('sensorZoneB');
+const sensorThrW = document.getElementById('sensorThrW');
+const sensorThrB = document.getElementById('sensorThrB');
+const sensorNeedle = document.getElementById('sensorNeedle');
+const sensorDeviceInfo = document.getElementById('sensorDeviceInfo');
+const sensorBlackNum = document.getElementById('sensorBlackNum');
+const sensorBlackRange = document.getElementById('sensorBlackRange');
+const sensorWhiteNum = document.getElementById('sensorWhiteNum');
+const sensorWhiteRange = document.getElementById('sensorWhiteRange');
+const sensorMsg = document.getElementById('sensorMsg');
+const sensorSaveBtn = document.getElementById('sensorSaveBtn');
+const sensorResetBtn = document.getElementById('sensorResetBtn');
+const sensorRecBlack = document.getElementById('sensorRecBlack');
+const sensorRecWhite = document.getElementById('sensorRecWhite');
+const sensorRecBlackBtn = document.getElementById('sensorRecBlackBtn');
+const sensorRecWhiteBtn = document.getElementById('sensorRecWhiteBtn');
+const sensorSuggestOut = document.getElementById('sensorSuggestOut');
+const sensorApplySuggestBtn = document.getElementById('sensorApplySuggestBtn');
+
+let sensorLiveChar = null;
+let sensorThreshChar = null;
+let sensorDeviceThresh = null;   // last thresholds JSON reported by the device
+let sensorLastRaw = null;
+let sensorLastLiveAt = 0;
+let sensorRecording = null;      // { which: 'black'|'white', samples: [] } while capturing
+let sensorRecorded = { black: null, white: null };
+let sensorSuggestion = null;
+let sensorBusy = false;
+
+// Suggestion: put both thresholds inside the gap between the recorded
+// black and white readings, leaving margin on both sides. The black
+// threshold sits a bit past the midpoint and the white one a quarter of
+// the way up -- the middle band in between is ignored by the firmware.
+const SENSOR_SUGGEST_BLACK_POS = 0.55;
+const SENSOR_SUGGEST_WHITE_POS = 0.25;
+const SENSOR_MIN_CONTRAST = 300;   // below this the two colors are too close to tell apart reliably
+
+function sensorClamp(v) { return Math.max(0, Math.min(SENSOR_ADC_MAX, Math.round(v))); }
+function sensorPct(v) { return (sensorClamp(v) / SENSOR_ADC_MAX * 100) + '%'; }
+function sensorMinGap() { return (sensorDeviceThresh && sensorDeviceThresh.minGap) || 100; }
+
+function sensorSetMsg(text, kind) {
+  sensorMsg.textContent = text || '';
+  sensorMsg.className = 'sensor-msg' + (kind ? ' ' + kind : '');
+}
+
+function sensorPendingValues() {
+  return { black: parseInt(sensorBlackNum.value, 10), white: parseInt(sensorWhiteNum.value, 10) };
+}
+
+function sensorValidate(black, white) {
+  if (!Number.isFinite(black) || !Number.isFinite(white)) return '請輸入數字';
+  if (black < 0 || black > SENSOR_ADC_MAX || white < 0 || white > SENSOR_ADC_MAX) return '數值要在 0 ~ ' + SENSOR_ADC_MAX + ' 之間';
+  if (black - white < sensorMinGap()) return '黑色門檻要比白色門檻至少高 ' + sensorMinGap();
+  return null;
+}
+
+function sensorSetInputs(black, white) {
+  sensorBlackNum.value = black; sensorBlackRange.value = black;
+  sensorWhiteNum.value = white; sensorWhiteRange.value = white;
+  sensorRender();
+}
+
+function sensorRender() {
+  const { black, white } = sensorPendingValues();
+  if (Number.isFinite(white)) {
+    sensorZoneW.style.width = sensorPct(white);
+    sensorThrW.style.left = sensorPct(white);
+  }
+  if (Number.isFinite(black)) {
+    sensorZoneB.style.width = (100 - sensorClamp(black) / SENSOR_ADC_MAX * 100) + '%';
+    sensorThrB.style.left = sensorPct(black);
+  }
+  const err = sensorValidate(black, white);
+  sensorSaveBtn.disabled = !!err || sensorBusy;
+  sensorSaveBtn.style.opacity = sensorSaveBtn.disabled ? 0.5 : 1;
+  if (err) sensorSetMsg(err, 'err');
+  else if (sensorMsg.classList.contains('err')) sensorSetMsg('');
+
+  const raw = sensorLastRaw;
+  if (raw === null || Date.now() - sensorLastLiveAt > 1500) {
+    sensorLiveNum.textContent = raw === null ? '--' : raw;
+    sensorZoneLamp.className = 'zone-lamp';
+    sensorZoneLamp.textContent = raw === null ? '等待數值' : '暫停中';
+    return;
+  }
+  sensorLiveNum.textContent = raw;
+  sensorNeedle.style.left = sensorPct(raw);
+  if (Number.isFinite(black) && raw >= black) {
+    sensorZoneLamp.className = 'zone-lamp black'; sensorZoneLamp.textContent = '黑';
+  } else if (Number.isFinite(white) && raw <= white) {
+    sensorZoneLamp.className = 'zone-lamp white'; sensorZoneLamp.textContent = '白';
+  } else {
+    sensorZoneLamp.className = 'zone-lamp mid'; sensorZoneLamp.textContent = '中間';
+  }
+}
+
+function sensorShowDeviceThresh(t, result) {
+  sensorDeviceThresh = t;
+  const custom = (t.black !== t.defBlack || t.white !== t.defWhite);
+  sensorDeviceInfo.textContent = '裝置目前使用:黑 ≥ ' + t.black + ' · 白 ≤ ' + t.white +
+    (custom ? '(自訂,預設 ' + t.defBlack + ' / ' + t.defWhite + ')' : '(預設值)');
+  if (result === 'saved') { sensorSetMsg('已寫入裝置', 'ok'); log('感測器門檻已寫入:黑 ≥ ' + t.black + ',白 ≤ ' + t.white); }
+  else if (result === 'reset') { sensorSetMsg('已恢復預設值', 'ok'); log('感測器門檻已恢復預設'); }
+  else if (result === 'invalid' || result === 'bad') { sensorSetMsg('裝置拒絕這組數值,請檢查黑白門檻差距', 'err'); }
+  if (result === 'saved' || result === 'reset' || result === undefined) sensorSetInputs(t.black, t.white);
+}
+
+function sensorParseThresh(dataView) {
+  try { return JSON.parse(new TextDecoder().decode(dataView.buffer)); } catch (e) { return null; }
+}
+
+function onSensorLiveNotify(event) {
+  const v = event.target.value;
+  if (v.byteLength < 2) return;
+  sensorLastRaw = v.getUint16(0, true);
+  sensorLastLiveAt = Date.now();
+  if (sensorRecording) sensorRecording.samples.push(sensorLastRaw);
+  sensorRender();
+}
+
+function onThreshNotify(event) {
+  const t = sensorParseThresh(event.target.value);
+  if (!t || !Number.isFinite(t.black)) return;
+  sensorShowDeviceThresh(t, t.result || null);
+}
+
+async function sensorWrite(cmd) {
+  await sensorThreshChar.writeValue(new TextEncoder().encode(cmd));
+}
+
+async function openSensorOverlay() {
+  menuPanel.classList.remove('open');
+  if (!device || !device.gatt.connected) { log('請先連接裝置,才能設定感測器'); return; }
+  if (otaBusy) { log('韌體更新中,請等更新完成再設定感測器'); return; }
+  sensorOverlay.classList.add('open');
+  sensorUnsupported.style.display = 'none';
+  sensorBody.style.display = 'none';
+  sensorLastRaw = null;
+  sensorSetMsg('');
+  try {
+    const service = await device.gatt.getPrimaryService(SERVICE_UUID);
+    try {
+      sensorThreshChar = await service.getCharacteristic(THRESH_CHAR_UUID);
+      sensorLiveChar = await service.getCharacteristic(SENSOR_LIVE_CHAR_UUID);
+    } catch (e) {
+      sensorUnsupported.style.display = 'block';
+      log('此裝置韌體不支援感測器設定(需要 V38 以後)');
+      return;
+    }
+    sensorBody.style.display = '';
+    await sensorLiveChar.startNotifications();
+    sensorLiveChar.addEventListener('characteristicvaluechanged', onSensorLiveNotify);
+    await sensorThreshChar.startNotifications();
+    sensorThreshChar.addEventListener('characteristicvaluechanged', onThreshNotify);
+    const t = sensorParseThresh(await sensorThreshChar.readValue());
+    if (t && Number.isFinite(t.black)) sensorShowDeviceThresh(t);
+    await sensorWrite('LIVE:1');
+    sensorRender();
+  } catch (e) {
+    sensorSetMsg('讀取裝置失敗: ' + e.message, 'err');
+  }
+}
+
+async function closeSensorOverlay() {
+  sensorOverlay.classList.remove('open');
+  sensorRecording = null;
+  if (sensorLiveChar) sensorLiveChar.removeEventListener('characteristicvaluechanged', onSensorLiveNotify);
+  if (sensorThreshChar) sensorThreshChar.removeEventListener('characteristicvaluechanged', onThreshNotify);
+  if (sensorThreshChar && device && device.gatt.connected) {
+    try { await sensorWrite('LIVE:0'); } catch (e) {}
+  }
+  sensorLiveChar = null;
+  sensorThreshChar = null;
+}
+
+function sensorMedian(arr) {
+  const s = arr.slice().sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+
+// Record ~1 second of live readings while the user holds one color in
+// front of the sensor, and use the median of those as that color's value.
+async function sensorRecord(which) {
+  if (sensorRecording) return;
+  const btn = which === 'black' ? sensorRecBlackBtn : sensorRecWhiteBtn;
+  const label = which === 'black' ? '黑色' : '白色';
+  const out = which === 'black' ? sensorRecBlack : sensorRecWhite;
+  sensorRecording = { which, samples: [] };
+  const oldText = btn.textContent;
+  btn.textContent = '記錄中...';
+  await new Promise(r => setTimeout(r, 1000));
+  const rec = sensorRecording;
+  sensorRecording = null;
+  btn.textContent = oldText;
+  if (!rec || rec.samples.length < 3) {
+    sensorSetMsg('沒有收到足夠的數值,請確認裝置連線後再記錄一次', 'err');
+    return;
+  }
+  const v = sensorMedian(rec.samples);
+  sensorRecorded[which] = v;
+  out.textContent = v;
+  sensorUpdateSuggestion();
+  log('已記錄' + label + '讀值 ' + v);
+}
+
+function sensorUpdateSuggestion() {
+  sensorSuggestion = null;
+  sensorApplySuggestBtn.style.display = 'none';
+  const b = sensorRecorded.black, w = sensorRecorded.white;
+  if (b === null || w === null) {
+    sensorSuggestOut.textContent = b === null && w === null
+      ? '把黑色、白色分別對準感測器後按記錄'
+      : '再記錄' + (b === null ? '黑色' : '白色') + '就能算出建議值';
+    return;
+  }
+  const contrast = b - w;
+  if (contrast < SENSOR_MIN_CONTRAST) {
+    sensorSuggestOut.textContent = '黑白讀值只差 ' + contrast + ',太接近了。請檢查感測器距離或角度,或確認有沒有記錄反了。';
+    return;
+  }
+  const black = Math.round((w + contrast * SENSOR_SUGGEST_BLACK_POS) / 10) * 10;
+  const white = Math.round((w + contrast * SENSOR_SUGGEST_WHITE_POS) / 10) * 10;
+  if (sensorValidate(black, white)) {
+    sensorSuggestOut.textContent = '算不出合理的建議值,請重新記錄';
+    return;
+  }
+  sensorSuggestion = { black, white };
+  sensorSuggestOut.textContent = '建議:黑 ≥ ' + black + ' · 白 ≤ ' + white;
+  sensorApplySuggestBtn.style.display = 'block';
+}
+
+function sensorBindPair(numEl, rangeEl) {
+  numEl.addEventListener('input', () => { rangeEl.value = numEl.value; sensorRender(); });
+  rangeEl.addEventListener('input', () => { numEl.value = rangeEl.value; sensorRender(); });
+}
+sensorBindPair(sensorBlackNum, sensorBlackRange);
+sensorBindPair(sensorWhiteNum, sensorWhiteRange);
+
+sensorSaveBtn.addEventListener('click', async () => {
+  const { black, white } = sensorPendingValues();
+  const err = sensorValidate(black, white);
+  if (err) { sensorSetMsg(err, 'err'); return; }
+  if (!sensorThreshChar) return;
+  sensorBusy = true; sensorRender();
+  sensorSetMsg('寫入中...');
+  try { await sensorWrite('SET:' + black + ':' + white); }
+  catch (e) { sensorSetMsg('寫入失敗: ' + e.message, 'err'); }
+  sensorBusy = false; sensorRender();
+});
+
+sensorResetBtn.addEventListener('click', async () => {
+  if (!sensorThreshChar) return;
+  sensorSetMsg('恢復預設中...');
+  try { await sensorWrite('RESET'); }
+  catch (e) { sensorSetMsg('恢復預設失敗: ' + e.message, 'err'); }
+});
+
+sensorRecBlackBtn.addEventListener('click', () => sensorRecord('black'));
+sensorRecWhiteBtn.addEventListener('click', () => sensorRecord('white'));
+sensorApplySuggestBtn.addEventListener('click', () => {
+  if (!sensorSuggestion) return;
+  sensorSetInputs(sensorSuggestion.black, sensorSuggestion.white);
+  sensorSetMsg('已填入建議值,確認燈號正常後按「寫入裝置」', 'ok');
+});
+menuSensor.addEventListener('click', openSensorOverlay);
+sensorCloseBtn.addEventListener('click', closeSensorOverlay);
+// keep the "paused / waiting" state honest when notifications stop (e.g. during a launch)
+setInterval(() => { if (sensorOverlay.classList.contains('open')) sensorRender(); }, 500);
+sensorUpdateSuggestion();
+
 // ---- Menu ---------------------------------------------------------
 menuBtn.addEventListener('click', () => menuPanel.classList.toggle('open'));
 document.addEventListener('click', (e) => {
-  if (!menuPanel.contains(e.target) && e.target !== menuBtn) {
+  if (!menuPanel.contains(e.target) && !menuBtn.contains(e.target)) {
     menuPanel.classList.remove('open');
   }
 });
@@ -1317,6 +1706,7 @@ async function connect() {
     device.addEventListener('gattserverdisconnected', () => {
       log('連線已中斷');
       setConnected(false);
+      if (sensorOverlay.classList.contains('open')) closeSensorOverlay();
     });
 
     log('連接中: ' + device.name);
