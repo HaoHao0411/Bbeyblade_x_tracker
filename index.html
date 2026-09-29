@@ -270,6 +270,23 @@
   .panel-title .t { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; color: var(--ink-dim); }
   .panel-title .n { font-size: 11px; color: var(--ink-dim); }
   .trend-svg-wrap { width: 100%; height: 108px; }
+  .hist-list { list-style: none; margin: 0; padding: 0; max-height: 216px; overflow-y: auto; }
+  .hist-row {
+    display: grid; grid-template-columns: 44px 1fr 150px; align-items: center; gap: 10px;
+    padding: 7px 4px; border-bottom: 0.5px solid var(--line);
+  }
+  .hist-row:last-child { border-bottom: none; }
+  .hist-no { font-size: 11px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+  .hist-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden; }
+  .hist-bar i { display: block; height: 100%; border-radius: 3px; background: #5a6478; }
+  .hist-row.latest .hist-bar i { background: var(--gold); }
+  .hist-row.best .hist-bar i { background: #ff2fb0; }
+  .hist-rpm { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; min-width: 92px; }
+  .hist-rpm small { font-size: 10px; font-weight: 600; color: var(--ink-dim); margin-left: 3px; }
+  .hist-tag { display: inline-block; font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 6px; vertical-align: 1px; }
+  .hist-tag.latest { background: rgba(0,229,255,0.15); color: var(--gold); }
+  .hist-tag.best { background: rgba(255,47,176,0.15); color: #ff2fb0; }
+  .hist-empty { font-size: 12px; color: var(--ink-dim); padding: 10px 4px; }
 
   .log {
     font-size: 10.5px; color: var(--ink-dim); line-height: 1.7; max-height: 70px; overflow-y: auto;
@@ -556,11 +573,9 @@
         <div class="trend-box">
           <div class="panel-title">
             <span class="t">轉速歷史紀錄</span>
-            <span class="n" id="trendMeta">最近 10 次 · 點選圖上的點查看數值</span>
+            <span class="n" id="trendMeta">最近 10 次</span>
           </div>
-          <div class="trend-svg-wrap">
-            <svg id="trendSvg" viewBox="0 0 300 108" width="100%" height="108" preserveAspectRatio="none"></svg>
-          </div>
+          <ul class="hist-list" id="historyList"><li class="hist-empty">尚無資料</li></ul>
         </div>
       </div>
     </div>
@@ -672,7 +687,7 @@ const statTotal = document.getElementById('statTotal');
 const statusDot = document.getElementById('statusDot');
 const statusMsg = document.getElementById('statusMsg');
 const statusRight = document.getElementById('statusRight');
-const trendSvg = document.getElementById('trendSvg');
+const historyList = document.getElementById('historyList');
 const trendMeta = document.getElementById('trendMeta');
 const flightCurveBox = document.getElementById('flightCurveBox');
 const flightCurveSvg = document.getElementById('flightCurveSvg');
@@ -1409,7 +1424,7 @@ function simulateLaunch() {
       statTotal.textContent = ((Number(statTotal.textContent.replace(/,/g, '')) || 0) + 1).toLocaleString();
       const avgGuess = Math.round(fakeHist.reduce((a, b) => a + b, 0) / fakeHist.length);
       statAvg.textContent = avgGuess.toLocaleString();
-      renderTrend(fakeHist);
+      renderTrend(fakeHist, Number(statTotal.textContent.replace(/,/g, '')) || fakeHist.length);
       renderFlightCurve(currentFlightSamples);
     }
   };
@@ -1422,8 +1437,7 @@ menuClearDisplay.addEventListener('click', () => {
   statMax.textContent = '--';
   statAvg.textContent = '--';
   statTotal.textContent = '--';
-  trendSvg.innerHTML = '';
-  trendMeta.textContent = '最近 10 次 · 點選圖上的點查看數值';
+  renderTrend([]);
   flightCurveSvg.innerHTML = '';
   flightCurveMeta.textContent = '尚無資料';
   currentFlightSamples = [];
@@ -1483,70 +1497,36 @@ function setHeroRpm(rpm) {
   heroFill.style.width = pct + '%';
 }
 
-function renderTrend(hist) {
-  trendSvg.innerHTML = '';
-  trendMeta.textContent = '最近 10 次 · 點選圖上的點查看數值';
-  if (!hist || hist.length < 2) return;
-  const w = 300, h = 88, pad = 6;
+// History as a list, newest first. `hist` comes from the device oldest
+// -> newest (last element = latest launch). `total` is the device's
+// lifetime launch count, used to number the rows (#total = latest).
+function renderTrend(hist, total) {
+  historyList.innerHTML = '';
+  if (!hist || hist.length === 0) {
+    trendMeta.textContent = '最近 10 次';
+    historyList.innerHTML = '<li class="hist-empty">尚無資料</li>';
+    return;
+  }
+  trendMeta.textContent = '最近 ' + hist.length + ' 次';
   const max = Math.max(...hist);
-  const min = Math.min(...hist);
-  const range = Math.max(1, max - min);
-  const step = (w - pad * 2) / (hist.length - 1);
-
-  const points = hist.map((v, i) => {
-    const x = pad + i * step;
-    const y = pad + (1 - (v - min) / range) * (h - pad * 2);
-    return [x, y];
-  });
-
-  const linePath = points.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
-  const areaPath = linePath + ` L${points[points.length - 1][0].toFixed(1)},${h} L${points[0][0].toFixed(1)},${h} Z`;
-
-  const ns = 'http://www.w3.org/2000/svg';
-  const area = document.createElementNS(ns, 'path');
-  area.setAttribute('d', areaPath);
-  area.setAttribute('fill', 'rgba(0,229,255,0.12)');
-  trendSvg.appendChild(area);
-
-  const line = document.createElementNS(ns, 'path');
-  line.setAttribute('d', linePath);
-  line.setAttribute('fill', 'none');
-  line.setAttribute('stroke', '#00e5ff');
-  line.setAttribute('stroke-width', '2.5');
-  line.setAttribute('stroke-linecap', 'round');
-  line.setAttribute('stroke-linejoin', 'round');
-  trendSvg.appendChild(line);
-
-  // Click any point to see that launch's peak RPM in the header above.
-  // A larger invisible circle sits on top of each visible dot purely to
-  // make the tap/click target bigger than the tiny 2.5px visible dot.
-  points.forEach((p, i) => {
-    const dot = document.createElementNS(ns, 'circle');
-    dot.setAttribute('cx', p[0].toFixed(1));
-    dot.setAttribute('cy', p[1].toFixed(1));
-    dot.setAttribute('r', i === points.length - 1 ? '4' : '2.5');
-    dot.setAttribute('fill', i === points.length - 1 ? '#00e5ff' : '#5a6478');
-    dot.setAttribute('id', 'trendDot' + i);
-    trendSvg.appendChild(dot);
-
-    const hitArea = document.createElementNS(ns, 'circle');
-    hitArea.setAttribute('cx', p[0].toFixed(1));
-    hitArea.setAttribute('cy', p[1].toFixed(1));
-    hitArea.setAttribute('r', '9');
-    hitArea.setAttribute('fill', 'transparent');
-    hitArea.style.cursor = 'pointer';
-    hitArea.addEventListener('click', () => {
-      trendSvg.querySelectorAll('circle[id^="trendDot"]').forEach(c => {
-        c.setAttribute('stroke', 'none');
-        c.removeAttribute('stroke-width');
-      });
-      dot.setAttribute('stroke', '#ff2fb0');
-      dot.setAttribute('stroke-width', '2');
-      const ordinal = (i === points.length - 1) ? '最新一次' : ('倒數第 ' + (points.length - i) + ' 次');
-      trendMeta.textContent = ordinal + ':峰值 ' + hist[i].toLocaleString() + ' RPM';
-    });
-    trendSvg.appendChild(hitArea);
-  });
+  const lastNo = (Number.isFinite(total) && total >= hist.length) ? total : hist.length;
+  for (let k = hist.length - 1; k >= 0; k--) {
+    const v = hist[k];
+    const isLatest = (k === hist.length - 1);
+    const isBest = (v === max) && hist.indexOf(max) === k;   // tag only one row if the max repeats
+    const li = document.createElement('li');
+    li.className = 'hist-row' + (isBest ? ' best' : (isLatest ? ' latest' : ''));
+    const no = lastNo - (hist.length - 1 - k);
+    const pct = max > 0 ? Math.max(4, Math.round(v / max * 100)) : 0;
+    li.innerHTML =
+      '<span class="hist-no">#' + no + '</span>' +
+      '<span class="hist-bar"><i style="width:' + pct + '%"></i></span>' +
+      '<span class="hist-rpm">' + v.toLocaleString() + '<small>RPM</small>' +
+        (isLatest ? '<span class="hist-tag latest">最新</span>' : '') +
+        (isBest ? '<span class="hist-tag best">最高</span>' : '') +
+      '</span>';
+    historyList.appendChild(li);
+  }
 }
 
 // ---- Per-flight RPM curve --------------------------------------------
@@ -1674,7 +1654,7 @@ function applyStats(dataView) {
     statMax.textContent = (data.max ?? 0).toLocaleString();
     statAvg.textContent = (data.avg ?? 0).toLocaleString();
     statTotal.textContent = (data.total ?? 0).toLocaleString();
-    renderTrend(data.hist || []);
+    renderTrend(data.hist || [], data.total ?? 0);
     log('已更新統計資料 (Total: ' + (data.total ?? 0) + ')');
   } catch (e) {
     log('統計資料解析失敗: ' + e.message);
