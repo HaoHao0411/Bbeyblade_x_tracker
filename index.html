@@ -128,6 +128,20 @@
   .ota-progress-track { height: 8px; border-radius: 4px; background: var(--bg); overflow: hidden; margin-bottom: 8px; }
   .ota-progress-fill { height: 100%; width: 0%; background: var(--gold); border-radius: 4px; transition: width 0.2s ease; }
   .ota-percent { font-size: 12px; color: var(--ink-dim); text-align: center; margin: 0; }
+  /* ---- Low battery banner + name settings (V16) ---- */
+  .bat-banner {
+    display: none; background: #3d1a1f; border: 0.5px solid #8a2a36; border-radius: 12px;
+    padding: 10px 14px; margin-bottom: 14px; font-size: 12px; line-height: 1.6; color: #ffb3bd;
+  }
+  .bat-banner.show { display: block; }
+  .bat-banner b { color: #ff6b81; }
+  .name-input {
+    width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; margin-bottom: 6px;
+    border: 0.5px solid var(--line); background: var(--bg); color: var(--ink); font-size: 15px;
+  }
+  .name-count { font-size: 11px; color: var(--ink-dim); text-align: right; margin: 0 0 12px; }
+  .name-count.err { color: #ff6b6b; }
+
   /* ---- Sensor settings (V14) ---- */
   .sensor-card { max-width: 640px; max-height: 92vh; overflow-y: auto; background: #0d1120; }
   .sensor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -362,6 +376,10 @@
 <body>
 <div class="stage">
 
+  <div class="bat-banner" id="batBanner">
+    <b>⚠️ 裝置電量偏低</b> · <span id="batBannerText"></span> · 請盡快充電。電量過低時裝置會暫停測速,避免紀錄存檔時斷電損壞。
+  </div>
+
   <div class="ios-banner" id="iosBanner">
     <div class="title">
       <span>⚠️ iOS 需要用 Bluefy 開啟</span>
@@ -394,6 +412,7 @@
     <button class="menu-item" id="menuClearDisplay">清除畫面顯示</button>
     <div class="menu-sep"></div>
     <button class="menu-item" id="menuSensor">感測器設定</button>
+    <button class="menu-item" id="menuName">藍牙名稱</button>
     <button class="menu-item" id="menuFirmware">更新韌體</button>
     <button class="menu-item" id="menuGestures">開關手勢說明</button>
     <div class="menu-sep"></div>
@@ -413,7 +432,7 @@
           <div class="gesture-count">3 次</div>
           <div class="gesture-desc">
             <div class="gesture-title">校正電池電量</div>
-            <div class="gesture-sub">只在電池剛充飽電時執行,裝置會假設當下電壓是滿電,反推校正係數並存檔。不是滿電時執行會校正出錯誤的結果。</div>
+            <div class="gesture-sub">選用功能,大部分裝置不需要。只在電池剛充飽電時執行,裝置會假設當下電壓是滿電,反推校正係數並存檔。韌體 V41 起,如果電池其實沒充飽,裝置會顯示「CAL FAILED」並拒絕存檔,不會把電量弄錯。</div>
           </div>
         </div>
 
@@ -438,6 +457,27 @@
     </div>
   </div>
 
+  <div class="ota-overlay" id="nameOverlay">
+    <div class="ota-card" style="background:#0d1120;">
+      <div class="ota-header">
+        <span>藍牙名稱</span>
+        <button class="ota-close-btn" id="nameCloseBtn">✕</button>
+      </div>
+      <div id="nameUnsupported" style="display:none;">
+        <p class="ota-hint">此裝置目前的韌體不支援修改藍牙名稱,請先到「更新韌體」更新到 V41 以後的版本。</p>
+      </div>
+      <div id="nameBody" style="display:none;">
+        <p class="ota-hint" id="nameCurrent">讀取中...</p>
+        <input class="name-input" id="nameInput" type="text" autocomplete="off" placeholder="例如:小明的發射器">
+        <p class="name-count" id="nameCount"></p>
+        <p class="sensor-msg" id="nameMsg"></p>
+        <button class="ota-btn ota-btn-primary" id="nameSaveBtn">儲存並重新啟動裝置</button>
+        <button class="ota-btn ota-btn-secondary" id="nameResetBtn">恢復預設名稱</button>
+        <p class="ota-hint" style="margin-bottom:0;">儲存後裝置會自動重新啟動,連線會中斷,請用新名稱重新連線。名稱最多 20 bytes(英數字 20 個、中文約 6 個字),不能使用引號 " 和反斜線 \。</p>
+      </div>
+    </div>
+  </div>
+
   <div class="ota-overlay" id="sensorOverlay">
     <div class="ota-card sensor-card">
       <div class="ota-header">
@@ -455,6 +495,7 @@
             <div>
               <div class="sensor-live-label">目前感測數值</div>
               <div class="sensor-live-num" id="sensorLiveNum">--</div>
+              <div class="sensor-live-label" id="sensorRateInfo" style="margin:6px 0 0;"></div>
             </div>
             <div class="zone-lamp" id="sensorZoneLamp">--</div>
           </div>
@@ -1052,6 +1093,7 @@ const sensorCloseBtn = document.getElementById('sensorCloseBtn');
 const sensorUnsupported = document.getElementById('sensorUnsupported');
 const sensorBody = document.getElementById('sensorBody');
 const sensorLiveNum = document.getElementById('sensorLiveNum');
+const sensorRateInfo = document.getElementById('sensorRateInfo');
 const sensorZoneLamp = document.getElementById('sensorZoneLamp');
 const sensorZoneW = document.getElementById('sensorZoneW');
 const sensorZoneB = document.getElementById('sensorZoneB');
@@ -1171,12 +1213,22 @@ function onSensorLiveNotify(event) {
   if (v.byteLength < 2) return;
   sensorLastRaw = v.getUint16(0, true);
   sensorLastLiveAt = Date.now();
+  if (v.byteLength >= 4) {
+    // firmware V41+: samples per second / 10
+    const rate = v.getUint16(2, true) * 10;
+    const cpu = sensorDeviceThresh && sensorDeviceThresh.cpuMHz ? ' · CPU ' + sensorDeviceThresh.cpuMHz + ' MHz' : '';
+    sensorRateInfo.textContent = '取樣率 ' + (rate / 1000).toFixed(1) + ' kHz' + cpu;
+  }
   if (sensorRecording) sensorRecording.samples.push(sensorLastRaw);
   sensorRender();
 }
 
-function onThreshNotify(event) {
-  const t = sensorParseThresh(event.target.value);
+async function onThreshNotify(event) {
+  let t = sensorParseThresh(event.target.value);
+  if (!t && sensorThreshChar) {
+    // notification got cut short (small BLE MTU) -- read the full value instead
+    try { t = sensorParseThresh(await sensorThreshChar.readValue()); } catch (e) {}
+  }
   if (!t || !Number.isFinite(t.black)) return;
   sensorShowDeviceThresh(t, t.result || null);
 }
@@ -1324,6 +1376,117 @@ sensorCloseBtn.addEventListener('click', closeSensorOverlay);
 // keep the "paused / waiting" state honest when notifications stop (e.g. during a launch)
 setInterval(() => { if (sensorOverlay.classList.contains('open')) sensorRender(); }, 500);
 sensorUpdateSuggestion();
+
+// ---- Bluetooth name (V16, needs firmware V41+) ----------------------
+// Uses the same settings characteristic as the sensor page: write
+// "NAME:<name>" (empty = default); the device saves it and reboots.
+const menuName = document.getElementById('menuName');
+const nameOverlay = document.getElementById('nameOverlay');
+const nameCloseBtn = document.getElementById('nameCloseBtn');
+const nameUnsupported = document.getElementById('nameUnsupported');
+const nameBody = document.getElementById('nameBody');
+const nameCurrent = document.getElementById('nameCurrent');
+const nameInput = document.getElementById('nameInput');
+const nameCount = document.getElementById('nameCount');
+const nameMsg = document.getElementById('nameMsg');
+const nameSaveBtn = document.getElementById('nameSaveBtn');
+const nameResetBtn = document.getElementById('nameResetBtn');
+let nameChar = null;
+let nameInfo = null;
+let nameWaiting = false;
+
+function nameByteLen(s) { return new TextEncoder().encode(s).length; }
+function nameMax() { return (nameInfo && nameInfo.nameMax) || 20; }
+function nameError(s) {
+  if (!s.trim()) return '請輸入名稱';
+  if (nameByteLen(s.trim()) > nameMax()) return '名稱太長(最多 ' + nameMax() + ' bytes)';
+  if (/["\\\u0000-\u001f\u007f]/.test(s)) return '不能包含引號、反斜線或控制字元';
+  return null;
+}
+function nameSetMsg(t, kind) { nameMsg.textContent = t || ''; nameMsg.className = 'sensor-msg' + (kind ? ' ' + kind : ''); }
+function nameRender() {
+  const v = nameInput.value;
+  const err = nameError(v);
+  nameCount.textContent = nameByteLen(v.trim()) + ' / ' + nameMax() + ' bytes';
+  nameCount.classList.toggle('err', nameByteLen(v.trim()) > nameMax());
+  nameSaveBtn.disabled = !!err || nameWaiting;
+  nameSaveBtn.style.opacity = nameSaveBtn.disabled ? 0.5 : 1;
+  if (err && v.length) nameSetMsg(err, 'err'); else if (nameMsg.classList.contains('err')) nameSetMsg('');
+}
+
+function onNameNotify(event) {
+  let t = null;
+  try { t = JSON.parse(new TextDecoder().decode(event.target.value.buffer)); } catch (e) { return; }
+  if (!t) return;
+  if (t.result === 'name_saved') {
+    nameWaiting = false;
+    nameSetMsg('已儲存為「' + t.name + '」,裝置重新啟動中,請稍候用新名稱重新連線', 'ok');
+    log('藍牙名稱已改為「' + t.name + '」,裝置重新啟動中');
+  } else if (t.result === 'name_invalid') {
+    nameWaiting = false;
+    nameSetMsg('裝置拒絕這個名稱,請換一個', 'err');
+    nameRender();
+  }
+}
+
+async function openNameOverlay() {
+  menuPanel.classList.remove('open');
+  if (!device || !device.gatt.connected) { log('請先連接裝置,才能修改藍牙名稱'); return; }
+  if (otaBusy) { log('韌體更新中,請等更新完成'); return; }
+  nameOverlay.classList.add('open');
+  nameUnsupported.style.display = 'none';
+  nameBody.style.display = 'none';
+  nameWaiting = false;
+  nameSetMsg('');
+  try {
+    const service = await device.gatt.getPrimaryService(SERVICE_UUID);
+    try { nameChar = await service.getCharacteristic(THRESH_CHAR_UUID); }
+    catch (e) { nameUnsupported.style.display = 'block'; return; }
+    nameInfo = JSON.parse(new TextDecoder().decode((await nameChar.readValue()).buffer));
+    if (typeof nameInfo.name !== 'string') { nameUnsupported.style.display = 'block'; return; }
+    await nameChar.startNotifications();
+    nameChar.addEventListener('characteristicvaluechanged', onNameNotify);
+    nameBody.style.display = 'block';
+    nameCurrent.textContent = '目前名稱:' + nameInfo.name + (nameInfo.name === nameInfo.defName ? '(預設)' : '(預設為 ' + nameInfo.defName + ')');
+    nameInput.value = nameInfo.name;
+    nameRender();
+  } catch (e) {
+    nameBody.style.display = 'block';
+    nameSetMsg('讀取裝置失敗: ' + e.message, 'err');
+  }
+}
+
+function closeNameOverlay() {
+  nameOverlay.classList.remove('open');
+  if (nameChar) nameChar.removeEventListener('characteristicvaluechanged', onNameNotify);
+  nameChar = null;
+}
+
+async function sendName(value) {
+  if (!nameChar) return;
+  nameWaiting = true; nameRender();
+  nameSetMsg('儲存中...');
+  try {
+    await nameChar.writeValue(new TextEncoder().encode('NAME:' + value));
+  } catch (e) {
+    nameWaiting = false; nameRender();
+    nameSetMsg('寫入失敗: ' + e.message, 'err');
+    return;
+  }
+  // If the confirmation notification was lost, the device still reboots; say so after a moment.
+  setTimeout(() => { if (nameWaiting) { nameWaiting = false; nameSetMsg('已送出,裝置會重新啟動,請稍候重新連線確認名稱', 'ok'); } }, 3000);
+}
+
+nameInput.addEventListener('input', nameRender);
+nameSaveBtn.addEventListener('click', () => {
+  const v = nameInput.value.trim();
+  const err = nameError(v);
+  if (err) { nameSetMsg(err, 'err'); return; }
+  sendName(v);
+});
+nameResetBtn.addEventListener('click', () => sendName(''));
+menuName.addEventListener('click', openNameOverlay);
+nameCloseBtn.addEventListener('click', closeNameOverlay);
 
 // ---- Menu ---------------------------------------------------------
 menuBtn.addEventListener('click', () => menuPanel.classList.toggle('open'));
@@ -1479,8 +1642,10 @@ function setConnected(isConnected) {
     connectBtn.textContent = '中斷連線';
     connectBtn.classList.add('active');
     statusMsg.textContent = '裝置就緒,等待發射';
-    statusRight.textContent = 'ONLINE';
+    statusRight.textContent = onlineLabel();
   } else {
+    deviceBatteryPct = null;
+    batBanner.classList.remove('show');
     connPill.classList.remove('on');
     connText.textContent = '未連線';
     connectBtn.textContent = '連接裝置';
@@ -1637,16 +1802,42 @@ function onRpmNotify(event) {
     isLiveDetecting = false;
     statusDot.classList.remove('live');
     statusMsg.textContent = '裝置就緒,等待發射';
-    statusRight.textContent = 'ONLINE';
+    statusRight.textContent = onlineLabel();
     renderFlightCurve(currentFlightSamples);   // launch just ended -- draw its curve
   }, 1500);
 }
 
-function onStatsNotify(event) {
-  applyStats(event.target.value);
+async function onStatsNotify(event) {
+  if (!applyStats(event.target.value, true) && statsCharRef) {
+    // notification got cut short (small BLE MTU) -- read the full value instead
+    try { applyStats(await statsCharRef.readValue()); } catch (e) {}
+  }
 }
 
-function applyStats(dataView) {
+let statsCharRef = null;
+let lastStatsTotal = null;
+let deviceBatteryPct = null;
+const batBanner = document.getElementById('batBanner');
+const batBannerText = document.getElementById('batBannerText');
+
+function onlineLabel() {
+  return 'ONLINE' + (deviceBatteryPct !== null ? ' · 電量 ' + deviceBatteryPct + '%' : '');
+}
+
+function applyBattery(data) {
+  if (typeof data.bat !== 'number') return;   // firmware before V41
+  const wasLow = batBanner.classList.contains('show');
+  deviceBatteryPct = data.bat;
+  if (!isLiveDetecting && device && device.gatt.connected) statusRight.textContent = onlineLabel();
+  const low = data.batLow === 1;
+  batBannerText.textContent = '剩餘約 ' + data.bat + '%' + (typeof data.batv === 'number' ? '(' + data.batv.toFixed(2) + 'V)' : '');
+  batBanner.classList.toggle('show', low);
+  if (low && !wasLow) log('⚠️ 裝置電量偏低(' + data.bat + '%),請盡快充電');
+}
+
+// Returns true if the JSON parsed. `quiet` suppresses the error log (the
+// caller will retry with a full read).
+function applyStats(dataView, quiet) {
   try {
     const decoder = new TextDecoder('utf-8');
     const text = decoder.decode(dataView.buffer);
@@ -1655,9 +1846,15 @@ function applyStats(dataView) {
     statAvg.textContent = (data.avg ?? 0).toLocaleString();
     statTotal.textContent = (data.total ?? 0).toLocaleString();
     renderTrend(data.hist || [], data.total ?? 0);
-    log('已更新統計資料 (Total: ' + (data.total ?? 0) + ')');
+    applyBattery(data);
+    if (lastStatsTotal !== (data.total ?? 0)) {
+      lastStatsTotal = data.total ?? 0;
+      log('已更新統計資料 (Total: ' + lastStatsTotal + ')');
+    }
+    return true;
   } catch (e) {
-    log('統計資料解析失敗: ' + e.message);
+    if (!quiet) log('統計資料解析失敗: ' + e.message);
+    return false;
   }
 }
 
@@ -1687,6 +1884,7 @@ async function connect() {
       log('連線已中斷');
       setConnected(false);
       if (sensorOverlay.classList.contains('open')) closeSensorOverlay();
+      if (nameOverlay.classList.contains('open') && !nameMsg.classList.contains('ok')) closeNameOverlay();
     });
 
     log('連接中: ' + device.name);
@@ -1698,6 +1896,8 @@ async function connect() {
     rpmChar.addEventListener('characteristicvaluechanged', onRpmNotify);
 
     const statsChar = await service.getCharacteristic(STATS_CHAR_UUID);
+    statsCharRef = statsChar;
+    lastStatsTotal = null;
     await statsChar.startNotifications();
     statsChar.addEventListener('characteristicvaluechanged', onStatsNotify);
     const initial = await statsChar.readValue();
