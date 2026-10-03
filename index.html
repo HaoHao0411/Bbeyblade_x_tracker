@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;1,700;1,800&display=swap" rel="stylesheet">
 <meta name="theme-color" content="#17140f">
 <style>
-  /* ===== 陀速 TOP SPEED — visual identity (V3.2) =====================================
+  /* ===== 陀速 TOP SPEED — visual identity (V3.3) =====================================
      Warm "competition sheet" look: paper background, black scoreboard,
      signal-orange accent, condensed italic numerals. Dark mode swaps to warm
      charcoal with the same orange. All colors live in these tokens. */
@@ -452,7 +452,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="wordmark">TOP<b>SPEED</b></div>
-      <div class="sub"><span class="cn-name">陀速</span> · 陀螺發射測速 · <span id="appVersionTag">V3.2</span></div>
+      <div class="sub"><span class="cn-name">陀速</span> · 陀螺發射測速 · <span id="appVersionTag">V3.3</span></div>
     </div>
     <div class="topbar-right">
       <div class="conn-pill" id="connPill">
@@ -771,6 +771,7 @@ document.getElementById('iosBannerClose').addEventListener('click', () => {
 const SERVICE_UUID = 'a1b2c3d4-0000-4000-8000-00805f9b0001';
 const RPM_CHAR_UUID = 'a1b2c3d4-0001-4000-8000-00805f9b0001';
 const STATS_CHAR_UUID = 'a1b2c3d4-0002-4000-8000-00805f9b0001';
+const CURVE_CHAR_UUID = 'a1b2c3d4-0008-4000-8000-00805f9b0001';   // firmware 3.2+: last launch curve with device timestamps
 const OTA_CONTROL_CHAR_UUID = 'a1b2c3d4-0003-4000-8000-00805f9b0001';
 const OTA_DATA_CHAR_UUID = 'a1b2c3d4-0004-4000-8000-00805f9b0001';
 const OTA_STATUS_CHAR_UUID = 'a1b2c3d4-0005-4000-8000-00805f9b0001';
@@ -1671,7 +1672,7 @@ menuClearDisplay.addEventListener('click', () => {
 
 menuAbout.addEventListener('click', () => {
   menuPanel.classList.remove('open');
-  log('陀速 TOP SPEED 網頁 V3.2' + (deviceFwVersion ? ' · 裝置韌體 V' + deviceFwVersion : '') + ' · 透過藍牙即時顯示發射轉速與紀錄');
+  log('陀速 TOP SPEED 網頁 V3.3' + (deviceFwVersion ? ' · 裝置韌體 V' + deviceFwVersion : '') + ' · 透過藍牙即時顯示發射轉速與紀錄');
 });
 
 menuFirmware.addEventListener('click', openOtaOverlay);
@@ -1785,7 +1786,7 @@ function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function renderFlightCurve(samples) {
+function renderFlightCurve(samples, smoothWindow = 5) {
   flightCurveSvg.innerHTML = '';
   if (!samples || samples.length < 2) {
     flightCurveMeta.textContent = '尚無資料';
@@ -1794,7 +1795,7 @@ function renderFlightCurve(samples) {
 
   const w = 300, h = 88, pad = 6;
   const rawRpms = samples.map(s => s.rpm);
-  const rpms = movingAverage(rawRpms, 5);   // smoothed values drive the drawn curve
+  const rpms = movingAverage(rawRpms, smoothWindow);   // smoothed values drive the drawn curve
   const times = samples.map(s => s.t);
   const maxRpm = Math.max(...rawRpms);      // peak label uses the RAW data -- smoothing shouldn't understate the true peak
   const minRpm = Math.min(...rpms);
@@ -1825,7 +1826,10 @@ function renderFlightCurve(samples) {
   line.setAttribute('stroke-linejoin', 'round');
   flightCurveSvg.appendChild(line);
 
-  const peakDot = document.createElementNS(ns, 'circle');
+  // ellipse sized so it renders as a round dot: the SVG stretches
+  // horizontally (preserveAspectRatio="none"), so compensate rx
+  const peakDot = document.createElementNS(ns, 'ellipse');
+  const stretchX = (flightCurveSvg.clientWidth || w) / w;
   const peakIdx = rawRpms.indexOf(maxRpm);
   // Plot the dot at the TRUE (unsmoothed) peak height, not the smoothed
   // curve's height at that same index -- smoothing softens a sharp
@@ -1837,7 +1841,8 @@ function renderFlightCurve(samples) {
   const peakY = pad + (1 - (maxRpm - minRpm) / rpmRange) * (h - pad * 2);
   peakDot.setAttribute('cx', points[peakIdx][0].toFixed(1));
   peakDot.setAttribute('cy', peakY.toFixed(1));
-  peakDot.setAttribute('r', '4');
+  peakDot.setAttribute('rx', (4 / stretchX).toFixed(2));
+  peakDot.setAttribute('ry', '4');
   peakDot.setAttribute('fill', cssVar('--ink'));
   flightCurveSvg.appendChild(peakDot);
 
@@ -1855,6 +1860,7 @@ function onRpmNotify(event) {
   statusRight.textContent = rpm.toLocaleString();
   if (!isLiveDetecting) {
     isLiveDetecting = true;
+    curveFromDevice = false;
     if (activeTab === 'timer') startTimer();   // only time it if you're actually looking at the timer tab when the launch happens
     currentFlightSamples = [];
     currentFlightStartAt = Date.now();
@@ -1868,8 +1874,39 @@ function onRpmNotify(event) {
     statusDot.classList.remove('live');
     statusMsg.textContent = '裝置就緒,等待發射';
     statusRight.textContent = onlineLabel();
-    renderFlightCurve(currentFlightSamples);   // launch just ended -- draw its curve
+    // launch just ended -- draw the live samples, unless the device's own
+    // timestamped curve (firmware 3.2+) has already been drawn
+    if (!curveFromDevice) renderFlightCurve(currentFlightSamples);
   }, 1500);
+}
+
+// ---- Device-side launch curve (firmware 3.2+) --------------------------
+// Live RPM notifications reach the phone in bursts (several per BLE
+// connection event) and can be dropped, and they were timestamped with
+// the phone's clock on arrival -- which bunched samples into vertical
+// jumps and left long straight gaps. Firmware 3.2 records every pulse
+// with its own device timestamp and exposes the finished curve; it's
+// read once when the stats update for a new launch arrives.
+let curveCharRef = null;
+let curveFromDevice = false;
+let lastCurveId = null;
+
+async function loadDeviceCurve() {
+  if (!curveCharRef) return;
+  let dv;
+  try { dv = await curveCharRef.readValue(); } catch (e) { return; }
+  if (dv.byteLength < 6 || dv.getUint8(0) !== 1) return;
+  const n = dv.getUint8(1);
+  const id = dv.getUint32(2, true);
+  if (n < 2 || dv.byteLength < 6 + n * 4 || id === lastCurveId) return;
+  const samples = [];
+  for (let i = 0; i < n; i++) {
+    samples.push({ t: dv.getUint16(6 + i * 4, true), rpm: dv.getUint16(8 + i * 4, true) });
+  }
+  lastCurveId = id;
+  curveFromDevice = true;
+  renderFlightCurve(samples, 3);   // real per-pulse data: light smoothing only
+  flightCurveMeta.textContent += ' · ' + n + ' 點';
 }
 
 async function onStatsNotify(event) {
@@ -1924,6 +1961,7 @@ function applyStats(dataView, quiet) {
     if (lastStatsTotal !== (data.total ?? 0)) {
       lastStatsTotal = data.total ?? 0;
       log('已更新統計資料 (Total: ' + lastStatsTotal + ')');
+      loadDeviceCurve();   // new launch (or first connect): fetch its timestamped curve
     }
     return true;
   } catch (e) {
@@ -1972,6 +2010,9 @@ async function connect() {
     const statsChar = await service.getCharacteristic(STATS_CHAR_UUID);
     statsCharRef = statsChar;
     lastStatsTotal = null;
+    lastCurveId = null;
+    try { curveCharRef = await service.getCharacteristic(CURVE_CHAR_UUID); }
+    catch (e) { curveCharRef = null; }   // firmware before 3.2 -- fall back to live samples
     await statsChar.startNotifications();
     statsChar.addEventListener('characteristicvaluechanged', onStatsNotify);
     const initial = await statsChar.readValue();
