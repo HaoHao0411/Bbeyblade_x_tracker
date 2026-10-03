@@ -3,373 +3,432 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>BeyBlade X 追蹤器(橫向)</title>
+<title>陀速 TOP SPEED</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;1,700;1,800&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#17140f">
 <style>
+  /* ===== 陀速 TOP SPEED — visual identity (V3.2) =====================================
+     Warm "competition sheet" look: paper background, black scoreboard,
+     signal-orange accent, condensed italic numerals. Dark mode swaps to warm
+     charcoal with the same orange. All colors live in these tokens. */
   :root {
-    --bg: #05060a;
-    --panel: rgba(20, 24, 38, 0.72);
-    --line: rgba(0, 229, 255, 0.18);
-    --ink: #eef2f7;
-    --ink-dim: #8894a8;
-    --gold: #00e5ff;
-    --gold-ink: #00131a;
-    --danger: #ff3d7f;
-    --neon-pink: #ff2fb0;
-    --neon-purple: #9b5cff;
+    --bg: #f2eee5;
+    --card: #ffffff;
+    --card-2: #faf7f1;
+    --ink: #17140f;
+    --ink-dim: #6e675c;
+    --line: #e1dacb;
+    --line-strong: #17140f;
+    --accent: #ff5a1f;
+    --accent-ink: #ffffff;
+    --accent-soft: #ffe7dc;
+    --accent-fill: rgba(255, 90, 31, 0.14);
+    --board: #17140f;          /* scoreboard panel */
+    --board-ink: #f7f3ea;
+    --board-dim: #8d867a;
+    --ok: #188a4a;
+    --danger: #d4321c;
+    --blue: #2b55e6;           /* player B */
+    --shadow: 0 1px 0 rgba(23, 20, 15, 0.06), 0 6px 18px rgba(23, 20, 15, 0.06);
+    --num: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+    --radius: 6px;
+    /* legacy names still referenced by a few rules */
+    --panel: var(--card);
+    --gold: var(--accent);
+    --gold-ink: var(--accent-ink);
+    --neon-pink: var(--blue);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1814;
+      --card: #24201b;
+      --card-2: #2b2620;
+      --ink: #f4efe6;
+      --ink-dim: #a39b8e;
+      --line: #3a342c;
+      --line-strong: #f4efe6;
+      --accent-soft: #3d2519;
+      --accent-fill: rgba(255, 90, 31, 0.18);
+      --board: #0f0d0a;
+      --shadow: none;
+      --blue: #6f8dff;
+      --ok: #3cc47a;
+      --danger: #ff6a52;
+    }
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    background:
-      radial-gradient(circle at 12% 15%, rgba(155, 92, 255, 0.28), transparent 42%),
-      radial-gradient(circle at 88% 12%, rgba(0, 229, 255, 0.22), transparent 42%),
-      radial-gradient(circle at 50% 95%, rgba(255, 47, 176, 0.16), transparent 48%),
-      var(--bg);
+    background: var(--bg);
     color: var(--ink);
-    font-family: "Noto Sans TC", -apple-system, "Segoe UI", sans-serif;
+    font-family: -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", sans-serif;
     min-height: 100vh;
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    padding: 20px;
-    position: relative;
+    padding: 18px 16px 28px;
     overflow-x: hidden;
   }
-  /* faint animated "rain" streaks over the neon glow */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    background-image: repeating-linear-gradient(
-      112deg,
-      rgba(180, 220, 255, 0.05) 0px,
-      rgba(180, 220, 255, 0.05) 1px,
-      transparent 1px,
-      transparent 14px
-    );
-    animation: rainFall 0.7s linear infinite;
-    pointer-events: none;
-    z-index: 0;
-  }
-  @keyframes rainFall {
-    from { background-position: 0 0; }
-    to { background-position: -26px 60px; }
-  }
-  .stage { width: 100%; max-width: 860px; position: relative; z-index: 1; }
+  .stage { width: 100%; max-width: 880px; position: relative; }
+  button { font-family: inherit; }
 
-  /* top bar spans full width */
-  .topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 14px;
+  /* ---- header ---- */
+  .topbar { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 10px; gap: 12px; }
+  .topbar-left { display: flex; align-items: flex-end; gap: 10px; min-width: 0; }
+  .wordmark {
+    font-family: var(--num); font-style: italic; font-weight: 800; font-size: 34px;
+    line-height: 0.9; letter-spacing: 0.5px; white-space: nowrap;
   }
-  .topbar-left { display: flex; align-items: center; gap: 10px; }
-  .logo {
-    width: 32px; height: 32px; border-radius: 9px;
-    background: var(--gold); color: var(--gold-ink);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px; font-weight: 800; flex-shrink: 0;
-  }
-  .topbar .name { font-size: 15px; font-weight: 800; letter-spacing: 1px; }
-  .topbar .sub { font-size: 10px; color: var(--ink-dim); letter-spacing: 1.5px; }
-  .topbar-right { display: flex; align-items: center; gap: 8px; }
+  .wordmark b { color: var(--accent); font-weight: 800; }
+  .topbar .sub { font-size: 11px; color: var(--ink-dim); padding-bottom: 3px; white-space: nowrap; }
+  .topbar .sub .cn-name { font-weight: 800; color: var(--ink); }
+  .topbar .sub #appVersionTag { font-family: var(--num); font-weight: 700; font-size: 12px; color: var(--ink); }
+  .topbar-right { display: flex; align-items: center; gap: 8px; position: relative; }
   .conn-pill {
-    display: flex; align-items: center; gap: 6px;
-    background: var(--panel); border: 0.5px solid var(--line);
-    padding: 6px 12px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; gap: 7px; background: var(--card);
+    border: 1.5px solid var(--line-strong); padding: 6px 11px; border-radius: var(--radius);
+    font-size: 12px; font-weight: 700; max-width: 46vw; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
   }
-  .conn-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-dim); }
-  .conn-pill.on .dot { background: #4ade80; }
+  .conn-pill .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--ink-dim); flex-shrink: 0; transform: rotate(45deg); }
+  .conn-pill.on { background: var(--ink); color: var(--bg); }
+  .conn-pill.on .dot { background: var(--accent); }
   .menu-btn {
-    width: 30px; height: 30px; border-radius: 8px; border: 0.5px solid var(--line);
-    background: var(--panel); display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 3px; cursor: pointer; position: relative;
+    width: 34px; height: 34px; border-radius: var(--radius); border: 1.5px solid var(--line-strong);
+    background: var(--card); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px; cursor: pointer; position: relative; padding: 0;
   }
   .menu-btn span, .menu-btn::before, .menu-btn::after {
-    content: ""; display: block; width: 15px; height: 2px; background: var(--ink); border-radius: 1px;
+    content: ""; display: block; width: 16px; height: 2px; background: var(--ink); border-radius: 0;
   }
+  .menu-btn::after { width: 10px; margin-left: 6px; }
   .menu-panel {
-    position: absolute; top: 54px; right: 20px; z-index: 20;
-    background: var(--panel); border: 0.5px solid var(--line); border-radius: 12px;
-    padding: 6px; min-width: 168px; display: none; box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    position: absolute; top: 42px; right: 0; z-index: 20;
+    background: var(--card); border: 1.5px solid var(--line-strong); border-radius: var(--radius);
+    padding: 4px; min-width: 176px; display: none; box-shadow: 6px 6px 0 var(--accent);
   }
   .menu-panel.open { display: block; }
   .menu-item {
     display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: none;
-    color: var(--ink); font-size: 13px; text-align: left; padding: 9px 10px; border-radius: 8px; cursor: pointer;
+    color: var(--ink); font-size: 14px; text-align: left; padding: 10px 12px; border-radius: 3px; cursor: pointer;
   }
-  .menu-item:active { background: rgba(255,255,255,0.06); }
+  .menu-item:hover, .menu-item:active { background: var(--accent-soft); }
   .menu-item:disabled { color: var(--ink-dim); opacity: 0.5; cursor: default; }
-  .menu-sep { height: 0.5px; background: var(--line); margin: 4px 2px; }
+  .menu-sep { height: 1px; background: var(--line); margin: 4px 6px; }
 
-  .ota-overlay {
-    display: none; position: fixed; inset: 0; z-index: 50;
-    background: rgba(0,0,0,0.6); align-items: center; justify-content: center;
-  }
-  .ota-overlay.open { display: flex; }
-  .ota-card {
-    width: 90%; max-width: 380px; background: var(--panel); border: 0.5px solid var(--line);
-    border-radius: 16px; padding: 18px; box-shadow: 0 12px 30px rgba(0,0,0,0.5);
-  }
-  .ota-header {
-    display: flex; align-items: center; justify-content: space-between;
-    font-size: 14px; font-weight: 700; margin-bottom: 14px;
-  }
-  .ota-close-btn { border: none; background: none; color: var(--ink-dim); font-size: 14px; cursor: pointer; }
-  .ota-hint { font-size: 12px; color: var(--ink-dim); line-height: 1.6; margin: 0 0 16px; }
-  .ota-btn {
-    display: block; width: 100%; text-align: center; padding: 12px; border-radius: 10px;
-    font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 10px; box-sizing: border-box;
-  }
-  .ota-btn-primary { border: none; background: var(--gold); color: var(--gold-ink); }
-  .ota-btn-secondary { border: 0.5px solid var(--line); background: var(--bg); color: var(--ink); }
-  .ota-status-text { font-size: 13px; color: var(--ink); text-align: center; margin: 0 0 14px; min-height: 18px; }
-  .ota-progress-track { height: 8px; border-radius: 4px; background: var(--bg); overflow: hidden; margin-bottom: 8px; }
-  .ota-progress-fill { height: 100%; width: 0%; background: var(--gold); border-radius: 4px; transition: width 0.2s ease; }
-  .ota-percent { font-size: 12px; color: var(--ink-dim); text-align: center; margin: 0; }
-  /* ---- Low battery banner + name settings (V16) ---- */
-  .bat-banner {
-    display: none; background: #3d1a1f; border: 0.5px solid #8a2a36; border-radius: 12px;
-    padding: 10px 14px; margin-bottom: 14px; font-size: 12px; line-height: 1.6; color: #ffb3bd;
-  }
-  .bat-banner.show { display: block; }
-  .bat-banner b { color: #ff6b81; }
-  .name-input {
-    width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; margin-bottom: 6px;
-    border: 0.5px solid var(--line); background: var(--bg); color: var(--ink); font-size: 15px;
-  }
-  .name-count { font-size: 11px; color: var(--ink-dim); text-align: right; margin: 0 0 12px; }
-  .name-count.err { color: #ff6b6b; }
-
-  /* ---- Sensor settings (V14) ---- */
-  .sensor-card { max-width: 640px; max-height: 92vh; overflow-y: auto; background: #0d1120; }
-  .sensor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 560px) { .sensor-grid { grid-template-columns: 1fr; } }
-  .sensor-live-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-  .sensor-live-num { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
-  .sensor-live-label { font-size: 10px; color: var(--ink-dim); letter-spacing: 1.5px; margin-bottom: 4px; }
-  .zone-lamp {
-    min-width: 92px; text-align: center; padding: 8px 10px; border-radius: 10px;
-    font-size: 14px; font-weight: 800; border: 1px solid var(--line); color: var(--ink-dim);
-  }
-  .zone-lamp.black { background: #000; color: #fff; border-color: #fff; }
-  .zone-lamp.white { background: #f4f6fa; color: #05060a; border-color: #f4f6fa; }
-  .zone-lamp.mid { background: rgba(255, 196, 0, 0.14); color: #ffc400; border-color: rgba(255, 196, 0, 0.5); }
-  .sensor-bar { position: relative; height: 26px; border-radius: 6px; background: #1a2030; overflow: hidden; margin: 4px 0 4px; }
-  .sensor-bar .zone-w { position: absolute; top: 0; bottom: 0; left: 0; background: rgba(244, 246, 250, 0.22); }
-  .sensor-bar .zone-b { position: absolute; top: 0; bottom: 0; right: 0; background: rgba(0, 0, 0, 0.75); }
-  .sensor-bar .thr { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; }
-  .sensor-bar .thr.w { background: #f4f6fa; }
-  .sensor-bar .thr.b { background: var(--gold); }
-  .sensor-bar .needle { position: absolute; top: -2px; bottom: -2px; width: 4px; margin-left: -2px; background: #ffc400; border-radius: 2px; box-shadow: 0 0 6px #ffc400; transition: left 0.08s linear; }
-  .sensor-scale { display: flex; justify-content: space-between; font-size: 10px; color: var(--ink-dim); margin-bottom: 12px; }
-  .sensor-field { margin-bottom: 12px; }
-  .sensor-field-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
-  .sensor-field-head input[type=number] {
-    width: 76px; padding: 4px 6px; border-radius: 6px; border: 0.5px solid var(--line);
-    background: var(--bg); color: var(--ink); font-size: 13px; text-align: right;
-  }
-  .sensor-field input[type=range] { width: 100%; accent-color: var(--gold); }
-  .sensor-note { font-size: 11.5px; color: var(--ink-dim); line-height: 1.6; margin: 0 0 10px; }
-  .sensor-msg { font-size: 12px; min-height: 18px; margin: 4px 0 10px; line-height: 1.5; }
-  .sensor-msg.ok { color: #4ade80; }
-  .sensor-msg.err { color: #ff6b6b; }
-  .sensor-btn-row { display: flex; gap: 8px; }
-  .sensor-btn-row .ota-btn { margin-bottom: 8px; }
-  .sensor-suggest { border: 0.5px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 12px; }
-  .sensor-suggest-title { font-size: 12px; font-weight: 700; margin-bottom: 6px; }
-  .sensor-rec { font-size: 12px; color: var(--ink-dim); margin: 0 0 8px; }
-  .sensor-rec b { color: var(--ink); }
-  .sensor-suggest-out { font-size: 13px; font-weight: 700; color: var(--gold); margin: 0 0 8px; min-height: 18px; }
-  .gesture-row { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
-  .gesture-count {
-    flex: 0 0 auto; min-width: 44px; text-align: center; font-size: 15px; font-weight: 700;
-    color: var(--gold-ink); background: var(--gold); border-radius: 8px; padding: 4px 6px;
-  }
-  .gesture-title { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
-  .gesture-sub { font-size: 11.5px; color: var(--ink-dim); line-height: 1.5; }
-
-  .ios-banner {
-    display: none; background: #1a2a3d; border: 0.5px solid #2a4a6a; border-radius: 12px;
-    padding: 12px 14px; margin-bottom: 14px; font-size: 12px; line-height: 1.6;
-  }
-  .ios-banner.show { display: block; }
-  .ios-banner .title { font-weight: 700; color: #7fc4ff; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; }
-  .ios-banner .title button { border: none; background: none; color: var(--ink-dim); font-size: 14px; cursor: pointer; }
-  .ios-banner a { color: #7fc4ff; font-weight: 700; }
-
-  /* main landscape grid: left = live readout & controls, right = data panels */
-  .grid {
-    display: grid;
-    grid-template-columns: 260px 1fr;
-    gap: 16px;
-  }
-
-  .col-left { display: flex; flex-direction: column; gap: 12px; }
-
-  .hero-card {
-    background: linear-gradient(160deg, rgba(30, 20, 50, 0.75), var(--panel));
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 0.5px solid var(--line);
-    border-radius: 18px;
-    padding: 18px 16px;
-    text-align: center;
-    box-shadow: 0 0 24px rgba(0, 229, 255, 0.08), inset 0 0 0 1px rgba(255,255,255,0.02);
-  }
-  .hero-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; color: var(--ink-dim); }
-  .hero-num { font-size: 46px; font-weight: 800; line-height: 1; margin: 10px 0 2px; font-variant-numeric: tabular-nums; text-shadow: 0 0 18px rgba(0,229,255,0.35); }
-  .hero-unit { font-size: 11px; color: var(--ink-dim); letter-spacing: 1.5px; }
-  .hero-track { height: 5px; border-radius: 3px; background: var(--bg); margin-top: 14px; overflow: hidden; }
-  .hero-track-fill { height: 100%; width: 0%; background: var(--gold); border-radius: 3px; transition: width 0.3s ease; box-shadow: 0 0 10px var(--gold); }
-
-  .tabbar {
-    display: flex; background: var(--panel); border: 0.5px solid var(--line);
-    border-radius: 12px; padding: 5px; gap: 4px;
-  }
+  /* ---- tabs: underlined text, left aligned ---- */
+  .tabbar { display: flex; gap: 22px; border-bottom: 1.5px solid var(--line); padding: 0 2px; }
   .tab-btn {
-    flex: 1; border: none; background: none; color: var(--ink-dim); font-size: 12px;
-    font-weight: 700; padding: 9px; border-radius: 9px; cursor: pointer;
+    border: none; background: none; color: var(--ink-dim); font-size: 15px; font-weight: 700;
+    padding: 10px 0 9px; cursor: pointer; position: relative;
   }
-  .tab-btn.active { background: var(--gold); color: var(--gold-ink); }
+  .tab-btn.active { color: var(--ink); }
+  .tab-btn.active::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1.5px; height: 3px; background: var(--accent);
+  }
 
   .view { display: none; }
   .view.active { display: block; }
 
-  .queue-row {
-    display: flex; align-items: center; justify-content: space-between;
-    background: var(--panel); border: 0.5px solid var(--line); border-radius: 10px;
-    padding: 10px 14px; font-size: 12px;
+  /* ---- main layout ---- */
+  .grid { display: grid; grid-template-columns: 280px 1fr; gap: 14px; }
+  .col-left, .col-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+  /* scoreboard */
+  .hero-card {
+    background: var(--board); color: var(--board-ink); border-radius: var(--radius);
+    padding: 14px 16px 16px; position: relative; overflow: hidden;
   }
-  .queue-row .lbl { color: var(--ink-dim); display: flex; align-items: center; gap: 8px; }
-  .queue-row .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-dim); }
-  .queue-row .dot.live { background: var(--gold); }
-  .queue-row .val { font-weight: 700; }
+  .hero-card::before {   /* orange corner flag */
+    content: ""; position: absolute; top: 0; right: 0; width: 46px; height: 46px;
+    background: linear-gradient(225deg, var(--accent) 0 50%, transparent 50%);
+  }
+  .hero-label { font-size: 12px; font-weight: 700; color: var(--board-dim); }
+  .hero-num {
+    font-family: var(--num); font-style: italic; font-weight: 800; font-size: 76px; line-height: 0.95;
+    margin: 6px 0 0; font-variant-numeric: tabular-nums; color: var(--accent); letter-spacing: 1px;
+  }
+  .hero-unit { font-family: var(--num); font-size: 15px; font-weight: 700; letter-spacing: 3px; color: var(--board-dim); margin-top: 6px; }
+  .hero-track {
+    height: 12px; margin-top: 12px; overflow: hidden;
+    background: repeating-linear-gradient(90deg, #3a342c 0 7px, transparent 7px 10px);
+  }
+  .hero-track-fill {
+    height: 100%; width: 0%; transition: width 0.25s ease;
+    background: repeating-linear-gradient(90deg, var(--accent) 0 7px, transparent 7px 10px);
+  }
+
+  .queue-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 10px 12px; font-size: 13px;
+  }
+  .queue-row .lbl { color: var(--ink-dim); display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .queue-row .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--line); transform: rotate(45deg); flex-shrink: 0; }
+  .queue-row .dot.live { background: var(--accent); }
+  .queue-row .val { font-family: var(--num); font-weight: 700; font-size: 15px; white-space: nowrap; }
 
   .connect-btn {
-    width: 100%; padding: 13px; border-radius: 12px; border: none; background: var(--gold);
-    color: var(--gold-ink); font-size: 14px; font-weight: 800; letter-spacing: 1px; cursor: pointer;
+    width: 100%; padding: 13px; border-radius: var(--radius); border: none; background: var(--accent);
+    color: var(--accent-ink); font-size: 16px; font-weight: 800; letter-spacing: 2px; cursor: pointer;
+    box-shadow: 0 3px 0 #b83a0e;
   }
-  .connect-btn.active { background: var(--panel); color: var(--danger); border: 0.5px solid var(--line); }
-
-  /* dedicated timer view, sits in the left column under the tab bar */
-  .timer-page { background: var(--panel); border: 0.5px solid var(--line); border-radius: 14px; padding: 18px 14px; text-align: center; }
-  .timer-page-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: var(--ink-dim); }
-  .timer-page-value { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink-dim); margin: 10px 0; }
-  .timer-page-value.running { color: var(--gold); }
-  .timer-page-hint { font-size: 10.5px; color: var(--ink-dim); margin-bottom: 14px; }
-  .timer-page-stop-btn {
-    width: 100%; padding: 12px; border-radius: 10px; border: 0.5px solid var(--line);
-    background: var(--bg); color: var(--ink-dim); font-size: 13px; font-weight: 800; cursor: pointer;
+  .connect-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #b83a0e; }
+  .connect-btn.active { background: var(--card); color: var(--danger); border: 1.5px solid var(--danger); box-shadow: none; }
+  .hint { font-size: 11.5px; color: var(--ink-dim); line-height: 1.6; margin: 0; }
+  .log {
+    font-size: 11px; color: var(--ink-dim); line-height: 1.7; max-height: 74px; overflow-y: auto;
+    background: var(--card-2); border-radius: var(--radius); padding: 8px 10px; border: 1px dashed var(--line);
   }
-  .timer-page-stop-btn:not(:disabled) { background: var(--gold); color: var(--gold-ink); border: none; }
 
-  /* right column: data panels */
-  .col-right { display: flex; flex-direction: column; gap: 12px; }
-
-  .strip {
-    display: flex; background: var(--panel); border: 0.5px solid var(--line);
-    border-radius: 14px; overflow: hidden;
+  /* stat tiles */
+  .strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .strip-item {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 10px 12px 8px; box-shadow: var(--shadow);
   }
-  .strip-item { flex: 1; padding: 12px 10px; text-align: center; }
-  .strip-item + .strip-item { border-left: 0.5px solid var(--line); }
-  .strip-item .k { font-size: 10px; color: var(--ink-dim); letter-spacing: 1px; margin: 0 0 5px; }
-  .strip-item .v { font-size: 18px; font-weight: 800; margin: 0; font-variant-numeric: tabular-nums; }
-  .strip-item.gold .v { color: var(--gold); }
+  .strip-item .k { font-size: 12px; font-weight: 700; color: var(--ink-dim); margin: 0; }
+  .strip-item .v {
+    font-family: var(--num); font-weight: 800; font-style: italic; font-size: 32px; line-height: 1.05;
+    margin: 2px 0 0; font-variant-numeric: tabular-nums;
+  }
+  .strip-item.gold { border-top: 4px solid var(--accent); padding-top: 7px; }
+  .strip-item.gold .v { color: var(--accent); }
 
+  /* cards */
   .charts-row { display: flex; flex-direction: column; gap: 12px; }
-  .trend-box { background: var(--panel); border: 0.5px solid var(--line); border-radius: 14px; padding: 14px 14px 10px; }
-  .panel-title { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
-  .panel-title .t { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; color: var(--ink-dim); }
-  .panel-title .n { font-size: 11px; color: var(--ink-dim); }
-  .trend-svg-wrap { width: 100%; height: 108px; }
-  .hist-list { list-style: none; margin: 0; padding: 0; max-height: 216px; overflow-y: auto; }
+  .trend-box {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 12px 14px; box-shadow: var(--shadow);
+  }
+  .panel-title {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  .panel-title .t { font-size: 15px; font-weight: 800; color: var(--ink); }
+  .panel-title .t::before {
+    content: ""; display: inline-block; width: 4px; height: 13px; background: var(--accent);
+    margin-right: 8px; vertical-align: -1px;
+  }
+  .panel-title .n { font-size: 12px; color: var(--ink-dim); text-align: right; }
+  .trend-svg-wrap {
+    width: 100%; height: 108px;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px);
+    background-size: 100% 27px;
+  }
+
+  /* history list */
+  .hist-list { list-style: none; margin: 0; padding: 0; max-height: 228px; overflow-y: auto; }
   .hist-row {
-    display: grid; grid-template-columns: 44px 1fr 150px; align-items: center; gap: 10px;
-    padding: 7px 4px; border-bottom: 0.5px solid var(--line);
+    display: grid; grid-template-columns: 46px 1fr 150px; align-items: center; gap: 12px;
+    padding: 7px 0; border-bottom: 1px solid var(--line);
   }
   .hist-row:last-child { border-bottom: none; }
-  .hist-no { font-size: 11px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
-  .hist-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden; }
-  .hist-bar i { display: block; height: 100%; border-radius: 3px; background: #5a6478; }
-  .hist-row.latest .hist-bar i { background: var(--gold); }
-  .hist-row.best .hist-bar i { background: #ff2fb0; }
-  .hist-rpm { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; min-width: 92px; }
-  .hist-rpm small { font-size: 10px; font-weight: 600; color: var(--ink-dim); margin-left: 3px; }
-  .hist-tag { display: inline-block; font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 6px; vertical-align: 1px; }
-  .hist-tag.latest { background: rgba(0,229,255,0.15); color: var(--gold); }
-  .hist-tag.best { background: rgba(255,47,176,0.15); color: #ff2fb0; }
-  .hist-empty { font-size: 12px; color: var(--ink-dim); padding: 10px 4px; }
-
-  .log {
-    font-size: 10.5px; color: var(--ink-dim); line-height: 1.7; max-height: 70px; overflow-y: auto;
-    background: var(--panel); border-radius: 10px; padding: 10px 12px; border: 0.5px solid var(--line);
-    font-family: "SF Mono", "Consolas", monospace;
+  .hist-no {
+    font-family: var(--num); font-weight: 700; font-size: 14px; color: var(--ink-dim);
+    font-variant-numeric: tabular-nums;
   }
-  .hint { font-size: 10.5px; color: var(--ink-dim); }
-
-  /* battle scoring page */
-  .battle-wrap { max-width: 640px; margin: 0 auto; }
-  .battle-header {
-    display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+  .hist-bar { height: 10px; background: var(--card-2); border: 1px solid var(--line); overflow: hidden; }
+  .hist-bar i { display: block; height: 100%; background: var(--ink-dim); opacity: 0.55; }
+  .hist-row.latest .hist-bar i { background: var(--ink); opacity: 1; }
+  .hist-row.best .hist-bar i { background: var(--accent); opacity: 1; }
+  .hist-rpm {
+    font-family: var(--num); font-size: 21px; font-weight: 800; font-style: italic;
+    font-variant-numeric: tabular-nums; text-align: right; min-width: 92px; white-space: nowrap;
   }
-  .battle-title { font-size: 14px; font-weight: 800; letter-spacing: 1px; }
+  .hist-rpm small { font-size: 11px; font-weight: 700; font-style: normal; color: var(--ink-dim); margin-left: 3px; }
+  .hist-tag {
+    display: inline-block; font-family: -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
+    font-style: normal; font-size: 10px; font-weight: 800; padding: 2px 5px; border-radius: 2px;
+    margin-left: 6px; vertical-align: 3px;
+  }
+  .hist-tag.latest { background: var(--ink); color: var(--bg); }
+  .hist-tag.best { background: var(--accent); color: var(--accent-ink); }
+  .hist-empty { font-size: 13px; color: var(--ink-dim); padding: 10px 0; }
+
+  /* ---- timer ---- */
+  .timer-page {
+    background: var(--board); color: var(--board-ink); border-radius: var(--radius);
+    padding: 20px 18px; text-align: center; margin-top: 14px !important;
+  }
+  .timer-page-label { font-size: 13px; font-weight: 700; color: var(--board-dim); margin: 0; }
+  .timer-page-value {
+    font-family: var(--num); font-style: italic; font-size: 64px; font-weight: 800;
+    font-variant-numeric: tabular-nums; color: var(--board-dim); margin: 6px 0 8px; line-height: 1;
+  }
+  .timer-page-value.running { color: var(--accent); }
+  .timer-page-hint { font-size: 12px; color: var(--board-dim); margin: 0 0 16px; }
+  .timer-page-stop-btn {
+    width: 100%; padding: 12px; border-radius: var(--radius); border: 1.5px solid #3a342c;
+    background: transparent; color: var(--board-dim); font-size: 15px; font-weight: 800; cursor: pointer;
+  }
+  .timer-page-stop-btn:not(:disabled) { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+  /* ---- battle ---- */
+  .battle-wrap { max-width: 660px; margin: 14px auto 0; }
+  .battle-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
+  .battle-title { font-size: 17px; font-weight: 800; }
   .battle-reset-btn {
-    border: 0.5px solid var(--line); background: var(--panel); color: var(--ink-dim);
-    font-size: 11px; font-weight: 700; padding: 8px 14px; border-radius: 9px; cursor: pointer;
+    border: 1.5px solid var(--line-strong); background: var(--card); color: var(--ink);
+    font-size: 13px; font-weight: 700; padding: 8px 12px; border-radius: var(--radius); cursor: pointer;
   }
   .battle-ready-btn {
-    border: none; background: var(--gold); color: var(--gold-ink);
-    font-size: 11px; font-weight: 800; padding: 8px 14px; border-radius: 9px; cursor: pointer;
+    border: none; background: var(--accent); color: var(--accent-ink);
+    font-size: 13px; font-weight: 800; padding: 9px 13px; border-radius: var(--radius); cursor: pointer;
   }
   .battle-ready-btn:active { opacity: 0.85; }
-  .battle-grid {
-    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; margin-bottom: 14px;
-  }
-  .battle-vs { font-size: 13px; font-weight: 800; color: var(--ink-dim); letter-spacing: 1px; }
+  .battle-grid { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .battle-vs { font-family: var(--num); font-style: italic; font-size: 28px; font-weight: 800; color: var(--ink-dim); }
   .player-card {
-    background: var(--panel); border: 0.5px solid var(--line); border-radius: 16px;
-    padding: 18px 16px; text-align: center; transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    background: var(--card); border: 1px solid var(--line); border-top: 6px solid var(--accent);
+    border-radius: var(--radius); padding: 14px 14px 16px; text-align: center; box-shadow: var(--shadow);
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
   }
-  .player-card.winner { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset, 0 0 24px rgba(0,229,255,0.25); }
-  .player-name-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 6px; }
-  .player-name { font-size: 13px; font-weight: 700; color: var(--ink-dim); }
-  .player-rename-btn { border: none; background: none; color: var(--ink-dim); font-size: 12px; cursor: pointer; padding: 2px; }
+  #playerCardB { border-top-color: var(--blue); }
+  .player-card.winner { box-shadow: 0 0 0 3px var(--accent); transform: translateY(-2px); }
+  #playerCardB.winner { box-shadow: 0 0 0 3px var(--blue); }
+  .player-name-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 2px; }
+  .player-name { font-size: 15px; font-weight: 800; color: var(--ink); }
+  .player-rename-btn { border: none; background: none; color: var(--ink-dim); font-size: 14px; cursor: pointer; padding: 2px; }
   .player-score {
-    font-size: 52px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; margin-bottom: 16px;
+    font-family: var(--num); font-style: italic; font-size: 78px; font-weight: 800; line-height: 1;
+    font-variant-numeric: tabular-nums; margin-bottom: 12px; color: var(--accent);
   }
-  .player-card.winner .player-score { color: var(--gold); }
-  #playerCardB.winner { border-color: var(--neon-pink); box-shadow: 0 0 0 1px var(--neon-pink) inset, 0 0 24px rgba(255,47,176,0.28); }
-  #playerCardB.winner .player-score { color: var(--neon-pink); }
-  .battle-btn-row { display: flex; flex-direction: column; gap: 6px; }
+  #playerCardB .player-score { color: var(--blue); }
+  .battle-btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .battle-pt-btn {
-    border: 0.5px solid var(--line); background: var(--bg); color: var(--ink);
-    font-size: 12px; font-weight: 700; padding: 9px; border-radius: 9px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card-2); color: var(--ink);
+    font-size: 13px; font-weight: 700; padding: 10px 6px; border-radius: var(--radius); cursor: pointer;
   }
-  .battle-pt-btn:active { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); }
-  .battle-hint { font-size: 11px; color: var(--ink-dim); text-align: center; margin-bottom: 12px; }
+  .battle-pt-btn:active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .battle-hint { font-size: 12px; color: var(--ink-dim); text-align: center; margin: 0 0 10px; }
   .battle-log {
-    font-size: 11px; color: var(--ink-dim); line-height: 1.8; max-height: 90px; overflow-y: auto;
-    background: var(--panel); border-radius: 10px; padding: 10px 12px; border: 0.5px solid var(--line);
+    font-size: 12px; color: var(--ink-dim); line-height: 1.8; max-height: 96px; overflow-y: auto;
+    background: var(--card-2); border-radius: var(--radius); padding: 8px 10px; border: 1px dashed var(--line);
   }
 
-  /* narrow-viewport fallback: stack columns if the window is too tight for landscape */
-  /* shared glass/neon treatment for every semi-transparent panel */
-  .conn-pill, .menu-panel, .strip, .queue-row, .timer-page, .trend-box,
-  .player-card, .log, .battle-log, .battle-pt-btn {
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+  /* ---- banners ---- */
+  .ios-banner, .bat-banner {
+    display: none; border-radius: var(--radius); padding: 10px 14px; margin-bottom: 12px;
+    font-size: 13px; line-height: 1.6; border-left: 5px solid;
   }
-  .menu-panel, .trend-box, .player-card, .log, .battle-log {
-    box-shadow: 0 0 20px rgba(0, 229, 255, 0.06);
+  .ios-banner { background: var(--card); border-color: var(--ink); border-top: 1px solid var(--line); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .ios-banner.show, .bat-banner.show { display: block; }
+  .ios-banner .title { font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; }
+  .ios-banner .title button { border: none; background: none; color: var(--ink-dim); font-size: 15px; cursor: pointer; }
+  .ios-banner a { color: var(--accent); font-weight: 800; }
+  .bat-banner { background: var(--accent-soft); border-color: var(--danger); color: var(--ink); }
+  .bat-banner b { color: var(--danger); }
+
+  /* ---- overlays (firmware / sensor / name / gestures) ---- */
+  .ota-overlay {
+    display: none; position: fixed; inset: 0; z-index: 50; padding: 12px;
+    background: rgba(23, 20, 15, 0.55); align-items: center; justify-content: center;
+  }
+  .ota-overlay.open { display: flex; }
+  .ota-card {
+    width: 100%; max-width: 400px; max-height: 94vh; overflow-y: auto; background: var(--card);
+    border: 1.5px solid var(--line-strong); border-radius: var(--radius); padding: 0 16px 16px;
+    box-shadow: 8px 8px 0 var(--accent);
+  }
+  .ota-header {
+    display: flex; align-items: center; justify-content: space-between; font-size: 16px; font-weight: 800;
+    margin: 0 -16px 14px; padding: 12px 16px; border-bottom: 1.5px solid var(--line-strong);
+    position: sticky; top: 0; background: var(--card); z-index: 1;
+  }
+  .ota-close-btn { border: none; background: none; color: var(--ink); font-size: 16px; cursor: pointer; padding: 4px; }
+  .ota-hint { font-size: 13px; color: var(--ink-dim); line-height: 1.65; margin: 0 0 14px; }
+  .ota-btn {
+    display: block; width: 100%; text-align: center; padding: 12px; border-radius: var(--radius);
+    font-size: 14px; font-weight: 800; cursor: pointer; margin-bottom: 9px; box-sizing: border-box;
+  }
+  .ota-btn-primary { border: none; background: var(--accent); color: var(--accent-ink); }
+  .ota-btn-secondary { border: 1.5px solid var(--line-strong); background: var(--card); color: var(--ink); }
+  .ota-status-text { font-size: 14px; color: var(--ink); text-align: center; margin: 0 0 12px; min-height: 18px; }
+  .ota-progress-track { height: 14px; background: var(--card-2); border: 1px solid var(--line); overflow: hidden; margin-bottom: 8px; }
+  .ota-progress-fill {
+    height: 100%; width: 0%; transition: width 0.2s ease;
+    background: repeating-linear-gradient(90deg, var(--accent) 0 8px, #ff7a45 8px 12px);
+  }
+  .ota-percent { font-family: var(--num); font-size: 18px; font-weight: 800; color: var(--ink); text-align: center; margin: 0; }
+
+  .gesture-row { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+  .gesture-count {
+    flex: 0 0 auto; min-width: 50px; text-align: center; font-size: 14px; font-weight: 800;
+    color: var(--accent-ink); background: var(--ink); border-radius: var(--radius); padding: 5px 6px;
+  }
+  .gesture-title { font-size: 14px; font-weight: 800; color: var(--ink); margin-bottom: 3px; }
+  .gesture-sub { font-size: 12.5px; color: var(--ink-dim); line-height: 1.6; }
+
+  .name-input {
+    width: 100%; padding: 11px 12px; border-radius: var(--radius); margin-bottom: 6px;
+    border: 1.5px solid var(--line-strong); background: var(--card-2); color: var(--ink); font-size: 16px;
+  }
+  .name-input:focus { outline: 3px solid var(--accent-soft); border-color: var(--accent); }
+  .name-count { font-size: 12px; color: var(--ink-dim); text-align: right; margin: 0 0 10px; }
+  .name-count.err { color: var(--danger); }
+
+  /* sensor settings */
+  .sensor-card { max-width: 660px; }
+  .sensor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 560px) { .sensor-grid { grid-template-columns: 1fr; } }
+  .sensor-live-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .sensor-live-num {
+    font-family: var(--num); font-style: italic; font-size: 54px; font-weight: 800; line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .sensor-live-label { font-size: 12px; color: var(--ink-dim); margin-bottom: 2px; }
+  .zone-lamp {
+    min-width: 96px; text-align: center; padding: 10px; border-radius: var(--radius);
+    font-size: 16px; font-weight: 800; border: 1.5px solid var(--line); color: var(--ink-dim); background: var(--card-2);
+  }
+  .zone-lamp.black { background: #111; color: #fff; border-color: #111; }
+  .zone-lamp.white { background: #fff; color: #111; border-color: #111; }
+  .zone-lamp.mid { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .sensor-bar { position: relative; height: 28px; background: var(--card-2); border: 1px solid var(--line); overflow: hidden; margin: 4px 0; }
+  .sensor-bar .zone-w { position: absolute; top: 0; bottom: 0; left: 0; background: repeating-linear-gradient(135deg, #ffffff 0 6px, #ece6da 6px 9px); }
+  .sensor-bar .zone-b { position: absolute; top: 0; bottom: 0; right: 0; background: #1d1a16; }
+  .sensor-bar .thr { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; }
+  .sensor-bar .thr.w { background: var(--ink-dim); }
+  .sensor-bar .thr.b { background: var(--ink); }
+  .sensor-bar .needle { position: absolute; top: -2px; bottom: -2px; width: 5px; margin-left: -2px; background: var(--accent); transition: left 0.08s linear; }
+  .sensor-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-dim); margin-bottom: 12px; }
+  .sensor-field { margin-bottom: 12px; }
+  .sensor-field-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; margin-bottom: 4px; }
+  .sensor-field-head input[type=number] {
+    width: 84px; padding: 6px 8px; border-radius: var(--radius); border: 1.5px solid var(--line-strong);
+    background: var(--card-2); color: var(--ink); font-family: var(--num); font-size: 18px; font-weight: 700; text-align: right;
+  }
+  .sensor-field input[type=range] { width: 100%; accent-color: var(--accent); }
+  .sensor-note { font-size: 12.5px; color: var(--ink-dim); line-height: 1.65; margin: 0 0 10px; }
+  .sensor-msg { font-size: 13px; min-height: 18px; margin: 4px 0 10px; line-height: 1.5; font-weight: 700; }
+  .sensor-msg.ok { color: var(--ok); }
+  .sensor-msg.err { color: var(--danger); }
+  .sensor-btn-row { display: flex; gap: 8px; }
+  .sensor-btn-row .ota-btn { margin-bottom: 8px; }
+  .sensor-suggest { background: var(--card-2); border: 1px dashed var(--line); border-radius: var(--radius); padding: 10px; margin-bottom: 12px; }
+  .sensor-suggest-title { font-size: 14px; font-weight: 800; margin-bottom: 6px; }
+  .sensor-rec { font-size: 13px; color: var(--ink-dim); margin: 0 0 8px; }
+  .sensor-rec b { color: var(--ink); font-family: var(--num); font-size: 16px; }
+  .sensor-suggest-out { font-size: 14px; font-weight: 800; color: var(--accent); margin: 0 0 8px; min-height: 18px; }
+
+  .site-foot {
+    margin-top: 22px; padding-top: 10px; border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    font-size: 11px; color: var(--ink-dim);
   }
 
   @media (max-width: 680px) {
     .grid { grid-template-columns: 1fr; }
-    /* .charts-row already stacks vertically at all widths now */
     .battle-grid { grid-template-columns: 1fr; }
     .battle-vs { display: none; }
+    .wordmark { font-size: 28px; }
+    .topbar .sub { display: none; }
+  }
+  @media (max-width: 380px) {
+    .strip-item .v { font-size: 26px; }
   }
 </style>
 </head>
@@ -392,11 +451,8 @@
 
   <div class="topbar">
     <div class="topbar-left">
-      <div class="logo">B</div>
-      <div>
-        <div class="name">BEYBLADE X TRACKER</div>
-        <div class="sub">LAUNCH TELEMETRY · <span id="appVersionTag">V1</span></div>
-      </div>
+      <div class="wordmark">TOP<b>SPEED</b></div>
+      <div class="sub"><span class="cn-name">陀速</span> · 陀螺發射測速 · <span id="appVersionTag">V3.2</span></div>
     </div>
     <div class="topbar-right">
       <div class="conn-pill" id="connPill">
@@ -404,20 +460,21 @@
         <span id="connText">未連線</span>
       </div>
       <button class="menu-btn" id="menuBtn" aria-label="選單"><span></span></button>
+    <div class="menu-panel" id="menuPanel">
+      <button class="menu-item" id="menuSimulate">模擬發射測試</button>
+      <button class="menu-item" id="menuClearDisplay">清除畫面顯示</button>
+      <div class="menu-sep"></div>
+      <button class="menu-item" id="menuSensor">感測器設定</button>
+      <button class="menu-item" id="menuName">藍牙名稱</button>
+      <button class="menu-item" id="menuFirmware">更新韌體</button>
+      <button class="menu-item" id="menuGestures">開關手勢說明</button>
+      <div class="menu-sep"></div>
+      <button class="menu-item" id="menuAbout">關於這個 App</button>
+    </div>
     </div>
   </div>
 
-  <div class="menu-panel" id="menuPanel">
-    <button class="menu-item" id="menuSimulate">模擬發射測試</button>
-    <button class="menu-item" id="menuClearDisplay">清除畫面顯示</button>
-    <div class="menu-sep"></div>
-    <button class="menu-item" id="menuSensor">感測器設定</button>
-    <button class="menu-item" id="menuName">藍牙名稱</button>
-    <button class="menu-item" id="menuFirmware">更新韌體</button>
-    <button class="menu-item" id="menuGestures">開關手勢說明</button>
-    <div class="menu-sep"></div>
-    <button class="menu-item" id="menuAbout">關於這個 App</button>
-  </div>
+
 
   <div class="ota-overlay" id="gesturesOverlay">
     <div class="ota-card">
@@ -458,7 +515,7 @@
   </div>
 
   <div class="ota-overlay" id="nameOverlay">
-    <div class="ota-card" style="background:#0d1120;">
+    <div class="ota-card">
       <div class="ota-header">
         <span>藍牙名稱</span>
         <button class="ota-close-btn" id="nameCloseBtn">✕</button>
@@ -507,7 +564,7 @@
             <div class="needle" id="sensorNeedle" style="left:0%;"></div>
           </div>
           <div class="sensor-scale"><span>0</span><span>白 ← → 黑</span><span>4095</span></div>
-          <p class="sensor-note">把陀螺的黑色、白色分別轉到感測器前面,確認燈號各自亮「黑」和「白」。黃色是兩個門檻中間,不會被判定。</p>
+          <p class="sensor-note">把陀螺的黑色、白色分別轉到感測器前面,確認燈號各自亮「黑」和「白」。燈號亮「中間」代表落在兩個門檻之間,不會被判定。</p>
 
           <div class="sensor-suggest">
             <div class="sensor-suggest-title">建議值</div>
@@ -548,10 +605,9 @@
       </div>
 
       <div class="ota-body" id="otaBodyIdle">
-        <p class="ota-hint">不同發射器的感測範圍不同,請先選擇跟你裝置相符的版本。更新期間請保持連線、不要關閉此頁面。</p>
-        <button class="ota-btn ota-btn-primary" data-profile="900">感測範圍 900(推薦先試這個)</button>
-        <button class="ota-btn ota-btn-primary" data-profile="1100">感測範圍 1100</button>
-        <button class="ota-btn ota-btn-primary" data-profile="1400">感測範圍 1400</button>
+        <p class="ota-hint" id="otaFwInfo" style="margin-bottom:8px;"></p>
+        <p class="ota-hint">會從 GitHub 下載最新版韌體並傳到裝置。更新期間請保持連線、不要關閉此頁面。黑白感測門檻在更新後會保留;如需調整,請到「感測器設定」。</p>
+        <button class="ota-btn ota-btn-primary" data-profile="last">更新到最新版韌體</button>
         <label class="ota-btn ota-btn-secondary" for="otaFileInput">或選擇本機 .bin 檔案</label>
         <input type="file" id="otaFileInput" accept=".bin" style="display:none;">
       </div>
@@ -565,7 +621,7 @@
   </div>
 
   <div class="tabbar" style="margin-bottom:14px;">
-    <button class="tab-btn active" id="tabMainBtn" data-tab="main">主頁</button>
+    <button class="tab-btn active" id="tabMainBtn" data-tab="main">測速</button>
     <button class="tab-btn" id="tabTimerBtn" data-tab="timer">計時</button>
     <button class="tab-btn" id="tabBattleBtn" data-tab="battle">對戰</button>
   </div>
@@ -576,9 +632,9 @@
     <!-- LEFT: live readout + connect -->
     <div class="col-left">
       <div class="hero-card">
-        <div class="hero-label">LIVE RPM</div>
+        <div class="hero-label">目前轉速</div>
         <div class="hero-num" id="rpmValue">0</div>
-        <div class="hero-unit">即時轉速 · RPM</div>
+        <div class="hero-unit">RPM</div>
         <div class="hero-track"><div class="hero-track-fill" id="heroFill"></div></div>
       </div>
 
@@ -588,7 +644,7 @@
       </div>
 
       <button class="connect-btn" id="connectBtn">連接裝置</button>
-      <p class="hint">首次連線時系統會跳出藍牙裝置選單,請選擇你的 BeyBlade X 裝置</p>
+      <p class="hint">按下連接後會跳出藍牙裝置清單,選擇你的發射器即可(預設名稱 TOPSPEED-XXXX,舊版韌體為 BeyBladeX)。</p>
       <div class="log" id="log">等待連線...</div>
     </div>
 
@@ -603,7 +659,7 @@
       <div class="charts-row">
         <div class="trend-box" id="flightCurveBox">
           <div class="panel-title">
-            <span class="t">本次發射曲線</span>
+            <span class="t">這次發射</span>
             <span class="n" id="flightCurveMeta">尚無資料</span>
           </div>
           <div class="trend-svg-wrap">
@@ -613,7 +669,7 @@
 
         <div class="trend-box">
           <div class="panel-title">
-            <span class="t">轉速歷史紀錄</span>
+            <span class="t">發射紀錄</span>
             <span class="n" id="trendMeta">最近 10 次</span>
           </div>
           <ul class="hist-list" id="historyList"><li class="hist-empty">尚無資料</li></ul>
@@ -681,6 +737,10 @@
     </div>
   </div>
 
+  <footer class="site-foot">
+    <span>陀速 TOP SPEED · 陀螺發射測速</span>
+    <span>電路設計 hao_hao_0411 · 外殼設計 wynn0112</span>
+  </footer>
 </div>
 
 <script>
@@ -760,13 +820,10 @@ let liveTimeout = null;
 let otaGattService = null;   // cached reference to the connected device's GATT service, so OTA can grab its own characteristics without redoing the whole connect flow
 
 // ---- Firmware update (OTA) ------------------------------------------
-// Different launchers' sensors read different raw ranges, so there are
-// three separate firmware builds -- one per sensor-range profile --
-// rather than a single "latest" file. Each profile name (900/1100/1400)
-// corresponds exactly to a file of that name in the repo, e.g.
-// firmware/900.bin. Update these file names whenever you push new
-// builds for a given profile; there's nothing else to change on the
-// app side.
+// One firmware file for every device: firmware/last.bin in the repo.
+// (Black/white thresholds are per-device settings stored on the device
+// since firmware V38, so separate 900/1100/1400 builds aren't needed.)
+// The button passes "last" as its profile, which maps to last.bin below.
 function firmwareUrlForProfile(profile) {
   return 'https://raw.githubusercontent.com/HaoHao0411/Bbeyblade_x_tracker/main/firmware/' + profile + '.bin';
 }
@@ -782,6 +839,9 @@ function openOtaOverlay() {
   }
   otaBodyIdle.style.display = 'block';
   otaBodyProgress.style.display = 'none';
+  document.getElementById('otaFwInfo').textContent = deviceFwVersion
+    ? '目前裝置韌體:V' + deviceFwVersion
+    : '目前裝置韌體:3.0 以前的舊版本';
   otaOverlay.classList.add('open');
   menuPanel.classList.remove('open');
 }
@@ -805,7 +865,7 @@ async function startOtaFromGithub(profile) {
   otaBusy = true;
   try {
     const url = firmwareUrlForProfile(profile);
-    setOtaProgress(0, '正在從 GitHub 下載韌體(感測範圍 ' + profile + ')...');
+    setOtaProgress(0, '正在從 GitHub 下載最新版韌體...');
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('下載失敗 (HTTP ' + res.status + ')');
 
@@ -1611,7 +1671,7 @@ menuClearDisplay.addEventListener('click', () => {
 
 menuAbout.addEventListener('click', () => {
   menuPanel.classList.remove('open');
-  log('BeyBlade X 追蹤器 V1 · 透過藍牙即時顯示發射轉速與歷史趨勢');
+  log('陀速 TOP SPEED 網頁 V3.2' + (deviceFwVersion ? ' · 裝置韌體 V' + deviceFwVersion : '') + ' · 透過藍牙即時顯示發射轉速與紀錄');
 });
 
 menuFirmware.addEventListener('click', openOtaOverlay);
@@ -1645,6 +1705,7 @@ function setConnected(isConnected) {
     statusRight.textContent = onlineLabel();
   } else {
     deviceBatteryPct = null;
+    deviceFwVersion = null;
     batBanner.classList.remove('show');
     connPill.classList.remove('on');
     connText.textContent = '未連線';
@@ -1720,6 +1781,10 @@ function movingAverage(values, windowSize) {
   return out;
 }
 
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
 function renderFlightCurve(samples) {
   flightCurveSvg.innerHTML = '';
   if (!samples || samples.length < 2) {
@@ -1748,13 +1813,13 @@ function renderFlightCurve(samples) {
   const ns = 'http://www.w3.org/2000/svg';
   const area = document.createElementNS(ns, 'path');
   area.setAttribute('d', areaPath);
-  area.setAttribute('fill', 'rgba(0,229,255,0.12)');
+  area.setAttribute('fill', cssVar('--accent-fill'));
   flightCurveSvg.appendChild(area);
 
   const line = document.createElementNS(ns, 'path');
   line.setAttribute('d', linePath);
   line.setAttribute('fill', 'none');
-  line.setAttribute('stroke', '#00e5ff');
+  line.setAttribute('stroke', cssVar('--accent'));
   line.setAttribute('stroke-width', '2.5');
   line.setAttribute('stroke-linecap', 'round');
   line.setAttribute('stroke-linejoin', 'round');
@@ -1773,7 +1838,7 @@ function renderFlightCurve(samples) {
   peakDot.setAttribute('cx', points[peakIdx][0].toFixed(1));
   peakDot.setAttribute('cy', peakY.toFixed(1));
   peakDot.setAttribute('r', '4');
-  peakDot.setAttribute('fill', '#00e5ff');
+  peakDot.setAttribute('fill', cssVar('--ink'));
   flightCurveSvg.appendChild(peakDot);
 
   flightCurveMeta.textContent = '峰值 ' + maxRpm.toLocaleString() + ' RPM · ' + (maxT / 1000).toFixed(1) + 's';
@@ -1817,11 +1882,19 @@ async function onStatsNotify(event) {
 let statsCharRef = null;
 let lastStatsTotal = null;
 let deviceBatteryPct = null;
+let deviceFwVersion = null;   // reported by firmware 3.0+ in the stats JSON
 const batBanner = document.getElementById('batBanner');
 const batBannerText = document.getElementById('batBannerText');
 
 function onlineLabel() {
   return 'ONLINE' + (deviceBatteryPct !== null ? ' · 電量 ' + deviceBatteryPct + '%' : '');
+}
+
+function applyFwVersion(data) {
+  if (typeof data.fw === 'string' && data.fw !== deviceFwVersion) {
+    deviceFwVersion = data.fw;
+    log('裝置韌體版本 V' + deviceFwVersion);
+  }
 }
 
 function applyBattery(data) {
@@ -1847,6 +1920,7 @@ function applyStats(dataView, quiet) {
     statTotal.textContent = (data.total ?? 0).toLocaleString();
     renderTrend(data.hist || [], data.total ?? 0);
     applyBattery(data);
+    applyFwVersion(data);
     if (lastStatsTotal !== (data.total ?? 0)) {
       lastStatsTotal = data.total ?? 0;
       log('已更新統計資料 (Total: ' + lastStatsTotal + ')');
