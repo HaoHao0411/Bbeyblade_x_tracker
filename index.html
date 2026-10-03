@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,800;1,700;1,800&display=swap" rel="stylesheet">
 <meta name="theme-color" content="#17140f">
 <style>
-  /* ===== 陀速 TOP SPEED — visual identity (V3.3) =====================================
+  /* ===== 陀速 TOP SPEED — visual identity (V3.4) =====================================
      Warm "competition sheet" look: paper background, black scoreboard,
      signal-orange accent, condensed italic numerals. Dark mode swaps to warm
      charcoal with the same orange. All colors live in these tokens. */
@@ -116,6 +116,25 @@
   .menu-item:hover, .menu-item:active { background: var(--accent-soft); }
   .menu-item:disabled { color: var(--ink-dim); opacity: 0.5; cursor: default; }
   .menu-sep { height: 1px; background: var(--line); margin: 4px 6px; }
+  .menu-item .new-dot { width: 7px; height: 7px; background: var(--accent); border-radius: 1px; transform: rotate(45deg); margin-left: auto; display: none; }
+  .menu-item.has-new .new-dot { display: block; }
+  .menu-btn.has-new::before { background: var(--accent); }
+
+  /* changelog */
+  .log-ver { margin-bottom: 16px; }
+  .log-ver:last-child { margin-bottom: 0; }
+  .log-ver-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .log-ver-tag {
+    font-family: var(--num); font-style: italic; font-weight: 800; font-size: 20px; line-height: 1;
+    background: var(--ink); color: var(--bg); padding: 3px 8px 2px; border-radius: 3px;
+  }
+  .log-ver.latest .log-ver-tag { background: var(--accent); color: var(--accent-ink); }
+  .log-ver-title { font-size: 14px; font-weight: 800; }
+  .log-ver-date { font-size: 11.5px; color: var(--ink-dim); margin-left: auto; }
+  .log-ver ul { margin: 0; padding-left: 18px; }
+  .log-ver li { font-size: 13px; line-height: 1.65; color: var(--ink); }
+  .log-ver li b { font-weight: 800; }
+  .log-note { font-size: 12px; color: var(--ink-dim); line-height: 1.6; margin: 0 0 14px; }
 
   /* ---- tabs: underlined text, left aligned ---- */
   .tabbar { display: flex; gap: 22px; border-bottom: 1.5px solid var(--line); padding: 0 2px; }
@@ -452,7 +471,7 @@
   <div class="topbar">
     <div class="topbar-left">
       <div class="wordmark">TOP<b>SPEED</b></div>
-      <div class="sub"><span class="cn-name">陀速</span> · 陀螺發射測速 · <span id="appVersionTag">V3.3</span></div>
+      <div class="sub"><span class="cn-name">陀速</span> · 陀螺發射測速 · <span id="appVersionTag">V3.4</span></div>
     </div>
     <div class="topbar-right">
       <div class="conn-pill" id="connPill">
@@ -469,12 +488,78 @@
       <button class="menu-item" id="menuFirmware">更新韌體</button>
       <button class="menu-item" id="menuGestures">開關手勢說明</button>
       <div class="menu-sep"></div>
+      <button class="menu-item" id="menuChangelog">版本更新<span class="new-dot"></span></button>
       <button class="menu-item" id="menuAbout">關於這個 App</button>
     </div>
     </div>
   </div>
 
 
+
+  <div class="ota-overlay" id="changelogOverlay">
+    <div class="ota-card" style="max-width:460px;">
+      <div class="ota-header">
+        <span>版本更新</span>
+        <button class="ota-close-btn" id="changelogCloseBtn">✕</button>
+      </div>
+      <p class="log-note">網頁和韌體的版本號分開計算。韌體請到選單「更新韌體」更新,網頁重新整理就是最新版。</p>
+
+      <div class="log-ver latest">
+        <div class="log-ver-head"><span class="log-ver-tag">3.4</span><span class="log-ver-title">紀錄保護</span><span class="log-ver-date">韌體 3.4 · 網頁 3.4</span></div>
+        <ul>
+          <li><b>低電量不再遺失紀錄:</b>電壓不穩造成的重開機,不會再被誤判成「開關 5 次清除紀錄」</li>
+          <li>檔案系統讀取失敗時不再自動格式化</li>
+          <li>紀錄改成兩份輪流存檔並加上檢查碼,存到一半斷電也不會壞掉</li>
+          <li>網頁新增這個「版本更新」頁面</li>
+        </ul>
+      </div>
+
+      <div class="log-ver">
+        <div class="log-ver-head"><span class="log-ver-tag">3.3</span><span class="log-ver-title">電量調整</span><span class="log-ver-date">韌體 3.3</span></div>
+        <ul>
+          <li>低電量鎖定電壓從 3.3V 提高到 3.6V,快沒電時更穩定</li>
+          <li>電量百分比重新對應(3.6V = 0%),先跳低電量警告、再鎖定</li>
+        </ul>
+      </div>
+
+      <div class="log-ver">
+        <div class="log-ver-head"><span class="log-ver-tag">3.2</span><span class="log-ver-title">發射曲線重做</span><span class="log-ver-date">韌體 3.2 · 網頁 3.3</span></div>
+        <ul>
+          <li><b>曲線改由裝置記錄時間,</b>每個脈衝都保留,不再出現垂直跳動和長直線</li>
+          <li>最高轉速更準確(忙碌時不會再漏掉脈衝)</li>
+          <li>曲線包含發射前的加速段,裝置螢幕上的曲線也改用時間軸</li>
+        </ul>
+      </div>
+
+      <div class="log-ver">
+        <div class="log-ver-head"><span class="log-ver-tag">3.1</span><span class="log-ver-title">單一韌體</span><span class="log-ver-date">韌體 3.1 · 網頁 3.1–3.2</span></div>
+        <ul>
+          <li>韌體合併成單一檔案,預設黑色門檻改為 900,各機器可在「感測器設定」自行調整</li>
+          <li>韌體更新改用新的下載位置</li>
+        </ul>
+      </div>
+
+      <div class="log-ver">
+        <div class="log-ver-head"><span class="log-ver-tag">3.0</span><span class="log-ver-title">陀速 TOP SPEED</span><span class="log-ver-date">韌體 3.0 · 網頁 3.0</span></div>
+        <ul>
+          <li>正式更名為「陀速 TOP SPEED」,全新網頁外觀,支援深色模式</li>
+          <li>開機畫面顯示名稱與韌體版本,藍牙預設名稱改為 TOPSPEED-XXXX</li>
+          <li>加強修正部分裝置螢幕亂碼問題</li>
+          <li>網頁可看到裝置目前的韌體版本</li>
+        </ul>
+      </div>
+
+      <div class="log-ver">
+        <div class="log-ver-head"><span class="log-ver-tag">2.x</span><span class="log-ver-title">3.0 之前的主要功能</span></div>
+        <ul>
+          <li>感測器設定頁:即時數值、黑白門檻燈號、建議值,設定存在裝置上</li>
+          <li>自訂藍牙名稱、低電量警告與保護、電量量測更準確</li>
+          <li>發射紀錄清單、發射曲線、計時、對戰計分</li>
+          <li>藍牙線上更新韌體,iPhone(Bluefy)也能穩定更新</li>
+        </ul>
+      </div>
+    </div>
+  </div>
 
   <div class="ota-overlay" id="gesturesOverlay">
     <div class="ota-card">
@@ -1670,9 +1755,30 @@ menuClearDisplay.addEventListener('click', () => {
   log('已清除畫面顯示(僅影響 App 畫面,不影響裝置本身的紀錄)');
 });
 
+// ---- Changelog ("版本更新") ------------------------------------------------
+// The newest entry's version is remembered per browser; until it has been
+// opened once, the menu shows a small orange marker.
+const CHANGELOG_LATEST = '3.4';
+const menuChangelog = document.getElementById('menuChangelog');
+const changelogOverlay = document.getElementById('changelogOverlay');
+function changelogSeen() { try { return localStorage.getItem('ts_changelog_seen') === CHANGELOG_LATEST; } catch (e) { return true; } }
+function refreshChangelogMarker() {
+  const isNew = !changelogSeen();
+  menuChangelog.classList.toggle('has-new', isNew);
+  menuBtn.classList.toggle('has-new', isNew);
+}
+menuChangelog.addEventListener('click', () => {
+  menuPanel.classList.remove('open');
+  changelogOverlay.classList.add('open');
+  try { localStorage.setItem('ts_changelog_seen', CHANGELOG_LATEST); } catch (e) {}
+  refreshChangelogMarker();
+});
+document.getElementById('changelogCloseBtn').addEventListener('click', () => changelogOverlay.classList.remove('open'));
+refreshChangelogMarker();
+
 menuAbout.addEventListener('click', () => {
   menuPanel.classList.remove('open');
-  log('陀速 TOP SPEED 網頁 V3.3' + (deviceFwVersion ? ' · 裝置韌體 V' + deviceFwVersion : '') + ' · 透過藍牙即時顯示發射轉速與紀錄');
+  log('陀速 TOP SPEED 網頁 V3.4' + (deviceFwVersion ? ' · 裝置韌體 V' + deviceFwVersion : '') + ' · 透過藍牙即時顯示發射轉速與紀錄');
 });
 
 menuFirmware.addEventListener('click', openOtaOverlay);
